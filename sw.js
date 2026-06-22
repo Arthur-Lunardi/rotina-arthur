@@ -1,11 +1,14 @@
-const CACHE_NAME = 'rotina-arthur-v1';
+const CACHE_NAME = 'rotina-arthur-v3';
 
 const ARQUIVOS_PARA_CACHE = [
   './',
   './index.html',
   './style.css',
-  './script.js',
   './manifest.json',
+  './js/app.js',
+  './js/storage.js',
+  './js/historico.js',
+  './js/ui.js',
   './icon.png',
   './icon-72.png',
   './icon-96.png',
