@@ -1,3 +1,12 @@
+// Registra o service worker para o app funcionar offline e ser instalável
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker
+      .register('./sw.js')
+      .catch((erro) => console.log('Erro ao registrar service worker:', erro));
+  });
+}
+
 const checkboxes =
 document.querySelectorAll(
 'input[type="checkbox"]'
