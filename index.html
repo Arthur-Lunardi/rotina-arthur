@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Rotina Arthur</title>
+
+<link rel="stylesheet" href="style.css">
+<link rel="manifest" href="manifest.json">
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>📅 Rotina Arthur</h1>
+
+<h2 id="diaAtual"></h2>
+
+<div class="card">
+
+<label>
+<input type="checkbox" id="acordar">
+Acordei às 06:30
+</label>
+
+<label>
+<input type="checkbox" id="estudo">
+Estudei
+</label>
+
+<label>
+<input type="checkbox" id="faculdade">
+Faculdade concluída
+</label>
+
+<label>
+<input type="checkbox" id="treino">
+Academia
+</label>
+
+<label>
+<input type="checkbox" id="sono">
+Dormi antes de 23:45
+</label>
+
+<label>
+<input type="checkbox" id="agua">
+Hidratação adequada
+</label>
+
+</div>
+
+<div class="progresso">
+<h3>Progresso</h3>
+
+<div class="barra">
+<div id="barraInterna"></div>
+</div>
+
+<p id="percentual">0%</p>
+
+</div>
+
+<div class="estatisticas">
+<h3>🔥 Estatísticas</h3>
+
+<p>Dias concluídos: <span id="diasConcluidos">0</span></p>
+
+<p>Treinos realizados:
+<span id="treinosRealizados">0</span>
+</p>
+
+</div>
+
+</div>
+
+<script src="script.js"></script>
+
+</body>
+</html>
