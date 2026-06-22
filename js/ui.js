@@ -1,6 +1,8 @@
 // ui.js
 // Tudo que toca no DOM mora aqui. Recebe dados já calculados e só exibe.
 
+import { gerarId } from './tarefas.js';
+
 const NOMES_DIA_SEMANA = { weekday: 'short' };
 
 /** Exibe o nome do dia da semana atual no topo da tela */
@@ -23,9 +25,28 @@ export function atualizarEstatisticas({ dias, treinos, sequencia }) {
 }
 
 /**
- * Renderiza a fileira de círculos de progresso dos últimos dias.
- * @param {Array} historico - lista vinda de obterHistoricoUltimosDias(), do mais antigo pro mais recente
+ * Renderiza dinamicamente as tarefas no card de checkboxes.
+ * @param {Array} tarefas - lista de { id, label, icone }
+ * @param {Function} onchange - callback chamado quando um checkbox muda
  */
+export function renderizarTarefas(tarefas, onchange) {
+  const card = document.getElementById('cardTarefas');
+  card.innerHTML = '';
+
+  tarefas.forEach((tarefa) => {
+    const label = document.createElement('label');
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.id = tarefa.id;
+    cb.addEventListener('change', onchange);
+
+    label.appendChild(cb);
+    label.appendChild(document.createTextNode(` ${tarefa.icone || ''} ${tarefa.label}`));
+    card.appendChild(label);
+  });
+}
+
+/** Renderiza a fileira de círculos de progresso dos últimos dias */
 export function renderizarHistorico(historico) {
   const container = document.getElementById('historico');
   if (!container) return;
@@ -66,4 +87,88 @@ export function aplicarEstadoCheckboxes(checkboxes, dados) {
   checkboxes.forEach((cb) => {
     cb.checked = dados[cb.id] || false;
   });
+}
+
+// ─── Modal de edição de tarefas ───────────────────────────────────────────────
+
+let _callbacks = {};
+
+/** Inicializa os callbacks do modal */
+export function inicializarModal({ onSalvar, onCancelar }) {
+  _callbacks = { onSalvar, onCancelar };
+
+  document.getElementById('modalOverlay').addEventListener('click', (e) => {
+    if (e.target.id === 'modalOverlay') onCancelar();
+  });
+  document.getElementById('btnModalCancelar').addEventListener('click', onCancelar);
+  document.getElementById('btnModalSalvar').addEventListener('click', coletarESalvar);
+  document.getElementById('btnAdicionarTarefa').addEventListener('click', adicionarLinhaNoModal);
+}
+
+/** Abre o modal preenchido com as tarefas atuais */
+export function abrirModalTarefas(tarefas) {
+  const lista = document.getElementById('listaTarefasModal');
+  lista.innerHTML = '';
+
+  tarefas.forEach((t) => adicionarLinhaNoModal(null, t));
+
+  document.getElementById('modalOverlay').classList.add('aberto');
+  document.body.style.overflow = 'hidden';
+}
+
+/** Fecha o modal */
+export function fecharModalTarefas() {
+  document.getElementById('modalOverlay').classList.remove('aberto');
+  document.body.style.overflow = '';
+}
+
+/** Adiciona uma linha de edição no modal */
+function adicionarLinhaNoModal(e, tarefa = null) {
+  const lista = document.getElementById('listaTarefasModal');
+  const id = tarefa ? tarefa.id : gerarId();
+
+  const linha = document.createElement('div');
+  linha.className = 'modal-linha';
+  linha.dataset.id = id;
+
+  linha.innerHTML = `
+    <input class="modal-input-icone" type="text" maxlength="2" placeholder="🔔"
+      value="${tarefa ? tarefa.icone || '' : ''}" aria-label="Ícone da tarefa">
+    <input class="modal-input-label" type="text" placeholder="Nome da tarefa"
+      value="${tarefa ? tarefa.label : ''}" aria-label="Nome da tarefa">
+    <button class="btn-remover-tarefa" aria-label="Remover tarefa">🗑️</button>
+  `;
+
+  linha.querySelector('.btn-remover-tarefa').addEventListener('click', () => {
+    linha.classList.add('saindo');
+    setTimeout(() => linha.remove(), 200);
+  });
+
+  lista.appendChild(linha);
+
+  // Foca no campo de label se for nova tarefa
+  if (!tarefa) {
+    setTimeout(() => linha.querySelector('.modal-input-label').focus(), 50);
+  }
+}
+
+/** Coleta os dados do modal e chama o callback de salvar */
+function coletarESalvar() {
+  const linhas = document.querySelectorAll('.modal-linha');
+  const novasTarefas = [];
+
+  linhas.forEach((linha) => {
+    const label = linha.querySelector('.modal-input-label').value.trim();
+    if (!label) return; // ignora linhas vazias
+    const icone = linha.querySelector('.modal-input-icone').value.trim();
+    const id = linha.dataset.id;
+    novasTarefas.push({ id, label, icone });
+  });
+
+  if (novasTarefas.length === 0) {
+    alert('Adicione pelo menos uma tarefa.');
+    return;
+  }
+
+  _callbacks.onSalvar(novasTarefas);
 }

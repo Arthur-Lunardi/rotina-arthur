@@ -9,16 +9,11 @@
 <link rel="stylesheet" href="style.css">
 <link rel="manifest" href="manifest.json">
 
-<!-- Tema da barra do navegador / status bar -->
 <meta name="theme-color" content="#111827">
-
-<!-- Ícones para instalação no iOS -->
 <link rel="apple-touch-icon" href="icon-180.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Rotina">
-
-<!-- Ícone padrão -->
 <link rel="icon" href="icon.png" type="image/png">
 </head>
 
@@ -26,73 +21,52 @@
 
 <div class="container">
 
-<h1>📅 Rotina Arthur</h1>
+  <h1>📅 Rotina Arthur</h1>
+  <h2 id="diaAtual"></h2>
 
-<h2 id="diaAtual"></h2>
+  <div class="card" id="cardTarefas">
+    <!-- Tarefas renderizadas dinamicamente pelo JS -->
+  </div>
 
-<div class="card">
+  <button id="btnEditarTarefas" class="btn-editar">✏️ Editar tarefas</button>
 
-<label>
-<input type="checkbox" id="acordar">
-Acordei às 06:30
-</label>
+  <div class="progresso">
+    <h3>Progresso</h3>
+    <div class="barra">
+      <div id="barraInterna"></div>
+    </div>
+    <p id="percentual">0%</p>
+  </div>
 
-<label>
-<input type="checkbox" id="estudo">
-Estudei
-</label>
+  <div class="estatisticas">
+    <h3>🔥 Estatísticas</h3>
+    <p>Dias concluídos: <span id="diasConcluidos">0</span></p>
+    <p>Treinos realizados: <span id="treinosRealizados">0</span></p>
+    <p>Sequência atual: <span id="sequenciaAtual">0</span> 🔥</p>
+  </div>
 
-<label>
-<input type="checkbox" id="faculdade">
-Faculdade concluída
-</label>
-
-<label>
-<input type="checkbox" id="treino">
-Academia
-</label>
-
-<label>
-<input type="checkbox" id="sono">
-Dormi antes de 23:45
-</label>
-
-<label>
-<input type="checkbox" id="agua">
-Hidratação adequada
-</label>
+  <div class="historico-container">
+    <h3>📆 Últimos 7 dias</h3>
+    <div id="historico" class="historico"></div>
+  </div>
 
 </div>
 
-<div class="progresso">
-<h3>Progresso</h3>
+<!-- Modal de edição de tarefas -->
+<div id="modalOverlay" class="modal-overlay" role="dialog" aria-modal="true" aria-label="Editar tarefas">
+  <div class="modal">
+    <h2 class="modal-titulo">✏️ Editar Tarefas</h2>
+    <p class="modal-dica">Arraste para reordenar • Ícone opcional</p>
 
-<div class="barra">
-<div id="barraInterna"></div>
-</div>
+    <div id="listaTarefasModal" class="modal-lista"></div>
 
-<p id="percentual">0%</p>
+    <button id="btnAdicionarTarefa" class="btn-adicionar">+ Nova tarefa</button>
 
-</div>
-
-<div class="estatisticas">
-<h3>🔥 Estatísticas</h3>
-
-<p>Dias concluídos: <span id="diasConcluidos">0</span></p>
-
-<p>Treinos realizados:
-<span id="treinosRealizados">0</span>
-</p>
-
-<p>Sequência atual: <span id="sequenciaAtual">0</span> 🔥</p>
-
-</div>
-
-<div class="historico-container">
-<h3>📆 Últimos 7 dias</h3>
-<div id="historico" class="historico"></div>
-</div>
-
+    <div class="modal-acoes">
+      <button id="btnModalCancelar" class="btn-cancelar">Cancelar</button>
+      <button id="btnModalSalvar" class="btn-salvar">Salvar</button>
+    </div>
+  </div>
 </div>
 
 <script type="module" src="js/app.js"></script>
