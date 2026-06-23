@@ -1,62 +1,154 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rotina Arthur</title>
 
-<title>Rotina Arthur</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="manifest" href="manifest.json">
 
-<link rel="stylesheet" href="style.css">
-<link rel="manifest" href="manifest.json">
-
-<meta name="theme-color" content="#111827">
-<link rel="apple-touch-icon" href="icon-180.png">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Rotina">
-<link rel="icon" href="icon.png" type="image/png">
+  <meta name="theme-color" content="#0f172a">
+  <link rel="apple-touch-icon" href="icon-180.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Rotina">
+  <link rel="icon" href="icon.png" type="image/png">
 </head>
-
 <body>
 
 <div class="container">
 
-  <h1>📅 Rotina Arthur</h1>
-  <h2 id="diaAtual"></h2>
+  <!-- Header -->
+  <header class="header">
+    <h1>📅 Rotina Arthur</h1>
+    <h2 id="diaAtual"></h2>
+  </header>
 
-  <div class="card" id="cardTarefas">
-    <!-- Tarefas renderizadas dinamicamente pelo JS -->
-  </div>
+  <!-- Navegação por abas -->
+  <nav class="abas">
+    <button class="aba ativa" data-aba="hoje">🏠 Hoje</button>
+    <button class="aba" data-aba="calendario">📆 Calendário</button>
+    <button class="aba" data-aba="dashboard">📊 Dashboard</button>
+  </nav>
 
-  <button id="btnEditarTarefas" class="btn-editar">✏️ Editar tarefas</button>
+  <!-- ═══ ABA: HOJE ═══ -->
+  <div id="aba-hoje" class="aba-conteudo ativa">
+    <div class="desktop-grid">
+      <!-- Coluna esquerda: tarefas -->
+      <div class="col-esquerda">
+        <div class="card" id="cardTarefas"></div>
+        <button id="btnEditarTarefas" class="btn-editar">✏️ Editar tarefas</button>
+      </div>
 
-  <div class="progresso">
-    <h3>Progresso</h3>
-    <div class="barra">
-      <div id="barraInterna"></div>
+      <!-- Coluna direita: progresso + stats + histórico -->
+      <div class="col-direita">
+        <div class="progresso">
+          <h3>Progresso do dia</h3>
+          <div class="barra"><div id="barraInterna"></div></div>
+          <p id="percentual">0%</p>
+        </div>
+
+        <div class="estatisticas">
+          <h3>🔥 Estatísticas</h3>
+          <div class="stats-grid">
+            <div class="stat-item">
+              <div class="stat-valor" id="diasConcluidos">0</div>
+              <div class="stat-label">Dias concluídos</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-valor" id="treinosRealizados">0</div>
+              <div class="stat-label">Treinos realizados</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-valor" id="sequenciaAtual">0</div>
+              <div class="stat-label">Sequência 🔥</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="historico-container">
+          <h3>📆 Últimos 7 dias</h3>
+          <div id="historico" class="historico"></div>
+        </div>
+      </div>
     </div>
-    <p id="percentual">0%</p>
   </div>
 
-  <div class="estatisticas">
-    <h3>🔥 Estatísticas</h3>
-    <p>Dias concluídos: <span id="diasConcluidos">0</span></p>
-    <p>Treinos realizados: <span id="treinosRealizados">0</span></p>
-    <p>Sequência atual: <span id="sequenciaAtual">0</span> 🔥</p>
+  <!-- ═══ ABA: CALENDÁRIO ═══ -->
+  <div id="aba-calendario" class="aba-conteudo">
+    <div class="card calendario-card">
+      <div class="calendario-header">
+        <button class="btn-mes" id="btnMesAnterior">‹</button>
+        <h3 id="tituloMes">Junho 2026</h3>
+        <button class="btn-mes" id="btnProximoMes">›</button>
+      </div>
+
+      <div class="calendario-semana">
+        <span>D</span><span>S</span><span>T</span><span>Q</span><span>Q</span><span>S</span><span>S</span>
+      </div>
+
+      <div id="calendarioGrid" class="calendario-grid"></div>
+    </div>
+
+    <!-- Detalhe do dia selecionado -->
+    <div id="detalhe-dia" class="card detalhe-dia" style="display:none">
+      <div class="detalhe-dia-header">
+        <h4 id="detalhe-data"></h4>
+        <span id="detalhe-percentual" class="detalhe-pct"></span>
+      </div>
+      <ul id="detalhe-lista" class="detalhe-lista"></ul>
+    </div>
   </div>
 
-  <div class="historico-container">
-    <h3>📆 Últimos 7 dias</h3>
-    <div id="historico" class="historico"></div>
+  <!-- ═══ ABA: DASHBOARD ═══ -->
+  <div id="aba-dashboard" class="aba-conteudo">
+    <div class="card dashboard-card">
+      <div class="dash-item">
+        <span class="dash-icone">🔥</span>
+        <div>
+          <div class="dash-label">Melhor sequência</div>
+          <div class="dash-valor" id="dash-melhor-seq">0 dias</div>
+        </div>
+      </div>
+      <div class="dash-item">
+        <span class="dash-icone">⭐</span>
+        <div>
+          <div class="dash-label">Dias perfeitos</div>
+          <div class="dash-valor" id="dash-dias-perfeitos">0</div>
+        </div>
+      </div>
+      <div class="dash-item">
+        <span class="dash-icone">📚</span>
+        <div>
+          <div class="dash-label">Dias estudados</div>
+          <div class="dash-valor" id="dash-horas">0</div>
+        </div>
+      </div>
+      <div class="dash-item">
+        <span class="dash-icone">💪</span>
+        <div>
+          <div class="dash-label">Treinos realizados</div>
+          <div class="dash-valor" id="dash-treinos">0</div>
+        </div>
+      </div>
+      <div class="dash-item">
+        <span class="dash-icone">📈</span>
+        <div>
+          <div class="dash-label">Média geral</div>
+          <div class="dash-valor" id="dash-media">0%</div>
+        </div>
+      </div>
+    </div>
   </div>
 
-</div>
+</div><!-- /container -->
 
 <!-- Modal de edição de tarefas -->
 <div id="modalOverlay" class="modal-overlay" role="dialog" aria-modal="true" aria-label="Editar tarefas">
   <div class="modal">
     <h2 class="modal-titulo">✏️ Editar Tarefas</h2>
-    <p class="modal-dica">Arraste para reordenar • Ícone opcional</p>
+    <p class="modal-dica">Ícone opcional • Linhas vazias são ignoradas</p>
 
     <div id="listaTarefasModal" class="modal-lista"></div>
 
@@ -70,6 +162,5 @@
 </div>
 
 <script type="module" src="js/app.js"></script>
-
 </body>
 </html>
