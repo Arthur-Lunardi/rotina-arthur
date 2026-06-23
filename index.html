@@ -4,10 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Rotina Arthur</title>
-
   <link rel="stylesheet" href="style.css">
   <link rel="manifest" href="manifest.json">
-
   <meta name="theme-color" content="#0f172a">
   <link rel="apple-touch-icon" href="icon-180.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -17,38 +15,40 @@
 </head>
 <body>
 
+<!-- Canvas de confetti (fullscreen, pointer-events:none) -->
+<canvas id="confettiCanvas" style="display:none;position:fixed;inset:0;z-index:999;pointer-events:none"></canvas>
+
 <div class="container">
 
   <!-- Header -->
   <header class="header">
-    <h1>📅 Rotina Arthur</h1>
+    <div class="header-inner">
+      <h1>📅 Rotina Arthur</h1>
+      <button id="btnConfiguracoes" class="btn-icon-header" aria-label="Configurações">⚙️</button>
+    </div>
     <h2 id="diaAtual"></h2>
   </header>
 
-  <!-- Navegação por abas -->
+  <!-- Abas -->
   <nav class="abas">
-    <button class="aba ativa" data-aba="hoje">🏠 Hoje</button>
-    <button class="aba" data-aba="calendario">📆 Calendário</button>
-    <button class="aba" data-aba="dashboard">📊 Dashboard</button>
+    <button class="aba ativa"  data-aba="hoje">🏠 Hoje</button>
+    <button class="aba"        data-aba="calendario">📆 Calendário</button>
+    <button class="aba"        data-aba="dashboard">📊 Dashboard</button>
   </nav>
 
   <!-- ═══ ABA: HOJE ═══ -->
   <div id="aba-hoje" class="aba-conteudo ativa">
     <div class="desktop-grid">
-      <!-- Coluna esquerda: tarefas -->
       <div class="col-esquerda">
         <div class="card" id="cardTarefas"></div>
         <button id="btnEditarTarefas" class="btn-editar">✏️ Editar tarefas</button>
       </div>
-
-      <!-- Coluna direita: progresso + stats + histórico -->
       <div class="col-direita">
         <div class="progresso">
           <h3>Progresso do dia</h3>
           <div class="barra"><div id="barraInterna"></div></div>
           <p id="percentual">0%</p>
         </div>
-
         <div class="estatisticas">
           <h3>🔥 Estatísticas</h3>
           <div class="stats-grid">
@@ -66,7 +66,6 @@
             </div>
           </div>
         </div>
-
         <div class="historico-container">
           <h3>📆 Últimos 7 dias</h3>
           <div id="historico" class="historico"></div>
@@ -83,15 +82,11 @@
         <h3 id="tituloMes">Junho 2026</h3>
         <button class="btn-mes" id="btnProximoMes" aria-label="Próximo mês">›</button>
       </div>
-
       <div class="calendario-semana" aria-hidden="true">
         <span>D</span><span>S</span><span>T</span><span>Q</span><span>Q</span><span>S</span><span>S</span>
       </div>
-
       <div id="calendarioGrid" class="calendario-grid"></div>
     </div>
-
-    <!-- Detalhe do dia selecionado -->
     <div id="detalhe-dia" class="card detalhe-dia" style="display:none">
       <div class="detalhe-dia-header">
         <h4 id="detalhe-data"></h4>
@@ -103,61 +98,103 @@
 
   <!-- ═══ ABA: DASHBOARD ═══ -->
   <div id="aba-dashboard" class="aba-conteudo">
+    <div class="card" style="padding:16px 20px">
+      <h3 class="dash-section-title">📈 Progresso — últimos 30 dias</h3>
+      <canvas id="graficoCanvas" style="width:100%;display:none"></canvas>
+    </div>
     <div class="card dashboard-card">
       <div class="dash-item">
         <span class="dash-icone">🔥</span>
-        <div>
-          <div class="dash-label">Melhor sequência</div>
-          <div class="dash-valor" id="dash-melhor-seq">0 dias</div>
-        </div>
+        <div><div class="dash-label">Melhor sequência</div><div class="dash-valor" id="dash-melhor-seq">0 dias</div></div>
       </div>
       <div class="dash-item">
         <span class="dash-icone">⭐</span>
-        <div>
-          <div class="dash-label">Dias perfeitos</div>
-          <div class="dash-valor" id="dash-dias-perfeitos">0</div>
-        </div>
+        <div><div class="dash-label">Dias perfeitos</div><div class="dash-valor" id="dash-dias-perfeitos">0</div></div>
       </div>
       <div class="dash-item">
         <span class="dash-icone">📚</span>
-        <div>
-          <div class="dash-label">Dias estudados</div>
-          <div class="dash-valor" id="dash-horas">0</div>
-        </div>
+        <div><div class="dash-label">Dias estudados</div><div class="dash-valor" id="dash-horas">0</div></div>
       </div>
       <div class="dash-item">
         <span class="dash-icone">💪</span>
-        <div>
-          <div class="dash-label">Treinos realizados</div>
-          <div class="dash-valor" id="dash-treinos">0</div>
-        </div>
+        <div><div class="dash-label">Treinos realizados</div><div class="dash-valor" id="dash-treinos">0</div></div>
       </div>
       <div class="dash-item">
         <span class="dash-icone">📈</span>
-        <div>
-          <div class="dash-label">Média geral</div>
-          <div class="dash-valor" id="dash-media">0%</div>
-        </div>
+        <div><div class="dash-label">Média geral</div><div class="dash-valor" id="dash-media">0%</div></div>
       </div>
     </div>
+    <button id="btnExportarCSV" class="btn-exportar">⬇️ Exportar histórico CSV</button>
   </div>
 
 </div><!-- /container -->
 
-<!-- Modal de edição de tarefas -->
+<!-- ═══ MODAL: Editar tarefas ═══ -->
 <div id="modalOverlay" class="modal-overlay" role="dialog" aria-modal="true" aria-label="Editar tarefas">
   <div class="modal">
     <h2 class="modal-titulo">✏️ Editar Tarefas</h2>
-    <p class="modal-dica">Ícone opcional • Linhas vazias são ignoradas</p>
-
+    <p class="modal-dica">Arraste para reordenar • Ícone opcional</p>
     <div id="listaTarefasModal" class="modal-lista"></div>
-
     <button id="btnAdicionarTarefa" class="btn-adicionar">+ Nova tarefa</button>
-
     <div class="modal-acoes">
       <button id="btnModalCancelar" class="btn-cancelar">Cancelar</button>
-      <button id="btnModalSalvar" class="btn-salvar">Salvar</button>
+      <button id="btnModalSalvar"   class="btn-salvar">Salvar</button>
     </div>
+  </div>
+</div>
+
+<!-- ═══ PAINEL: Configurações ═══ -->
+<div id="configOverlay" class="modal-overlay" role="dialog" aria-modal="true" aria-label="Configurações">
+  <div class="modal config-modal">
+    <div class="config-header">
+      <h2 class="modal-titulo">⚙️ Configurações</h2>
+      <button id="btnFecharConfig" class="btn-fechar-config" aria-label="Fechar">✕</button>
+    </div>
+
+    <!-- Tema -->
+    <div class="config-secao">
+      <div class="config-item">
+        <div>
+          <div class="config-label">Tema claro</div>
+          <div class="config-desc">Alterna entre modo escuro e claro</div>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="toggleTema">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Notificações -->
+    <div class="config-secao">
+      <div class="config-secao-titulo">🔔 Notificação diária</div>
+      <div class="config-item">
+        <div>
+          <div class="config-label">Ativar lembrete</div>
+          <div class="config-desc">Lembrete para registrar as tarefas do dia</div>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="toggleNotif">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div class="config-item">
+        <div class="config-label">Horário do lembrete</div>
+        <input type="time" id="inputHoraNotif" class="input-config" value="23:15">
+      </div>
+    </div>
+
+    <!-- Retrospectiva -->
+    <div class="config-secao">
+      <div class="config-secao-titulo">📅 Registrar dia passado</div>
+      <div class="config-item">
+        <div class="config-label">Data</div>
+        <input type="date" id="inputDataRetro" class="input-config">
+      </div>
+      <ul id="retroLista" style="list-style:none;margin-top:4px"></ul>
+      <button id="btnSalvarRetro" class="btn-salvar" style="width:100%;margin-top:10px">Salvar retrospectiva</button>
+    </div>
+
   </div>
 </div>
 

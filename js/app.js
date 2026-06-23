@@ -1,50 +1,62 @@
 // app.js — ponto de entrada principal
-import { chaveHoje, lerDados, salvarDados, chavesDeDataValidas } from './storage.js';
+import { chaveHoje, lerDados, salvarDados, chavesDeDataValidas, lerPrefs, salvarPrefs } from './storage.js';
 import { obterHistoricoUltimosDias, calcularSequencia } from './historico.js';
 import {
-  exibirDiaAtual,
-  atualizarBarraProgresso,
-  atualizarEstatisticas,
-  renderizarHistorico,
-  lerEstadoCheckboxes,
-  aplicarEstadoCheckboxes,
-  renderizarTarefas,
-  abrirModalTarefas,
-  fecharModalTarefas,
-  inicializarModal,
+  exibirDiaAtual, atualizarBarraProgresso, atualizarEstatisticas,
+  renderizarHistorico, lerEstadoCheckboxes, aplicarEstadoCheckboxes,
+  renderizarTarefas, abrirModalTarefas, fecharModalTarefas,
+  inicializarModal, abrirConfiguracoes, fecharConfiguracoes,
 } from './ui.js';
 import { carregarTarefas, salvarTarefas } from './tarefas.js';
 import { obterDadosMes, calcularDashboard, corProgresso } from './calendario.js';
+import { exportarCSV } from './exportar.js';
+import { dispararConfetti, resetarConfetti } from './confetti.js';
+import { renderizarGrafico } from './grafico.js';
+import {
+  lerConfigNotif, salvarConfigNotif,
+  pedirPermissao, agendarNotificacao, inicializarNotificacoes,
+} from './notificacoes.js';
 
 registrarServiceWorker();
 
 const CHAVE_HOJE = chaveHoje();
 let tarefasAtuais = carregarTarefas();
-
-// Estado do calendário
-let calMes = new Date().getMonth();
-let calAno = new Date().getFullYear();
+let calMes  = new Date().getMonth();
+let calAno  = new Date().getFullYear();
+let _ultimoPct = -1;
 
 iniciar();
 
-// ─── Bootstrap ────────────────────────────────────────────────────────────────
+// ── Bootstrap ─────────────────────────────────────────────────────
 
 function iniciar() {
+  aplicarTema();
   exibirDiaAtual();
   renderizarTarefas(tarefasAtuais, onCheckboxChange);
   carregarDiaAtual();
   atualizarTela();
   inicializarModal({ onSalvar: salvarEdicaoTarefas, onCancelar: fecharModalTarefas });
+  inicializarNotificacoes();
+  _bindEventos();
+}
 
+function _bindEventos() {
   document.getElementById('btnEditarTarefas')
     .addEventListener('click', () => abrirModalTarefas(tarefasAtuais));
 
-  // Abas
-  document.querySelectorAll('.aba').forEach((btn) => {
-    btn.addEventListener('click', () => trocarAba(btn.dataset.aba));
-  });
+  // Botão de configurações no header
+  document.getElementById('btnConfiguracoes')
+    .addEventListener('click', abrirConfiguracoes);
+  document.getElementById('btnFecharConfig')
+    .addEventListener('click', fecharConfiguracoes);
+  document.getElementById('configOverlay')
+    .addEventListener('click', (e) => { if (e.target.id === 'configOverlay') fecharConfiguracoes(); });
 
-  // Navegação do calendário
+  // Abas
+  document.querySelectorAll('.aba')
+    .forEach(btn => btn.addEventListener('click', () => trocarAba(btn.dataset.aba)));
+
+  // Calendário
   document.getElementById('btnMesAnterior').addEventListener('click', () => {
     if (--calMes < 0) { calMes = 11; calAno--; }
     renderizarCalendario();
@@ -53,9 +65,56 @@ function iniciar() {
     if (++calMes > 11) { calMes = 0; calAno++; }
     renderizarCalendario();
   });
+
+  // Exportar CSV
+  document.getElementById('btnExportarCSV')
+    .addEventListener('click', exportarCSV);
+
+  // Tema
+  document.getElementById('toggleTema').addEventListener('change', (e) => {
+    const prefs = lerPrefs();
+    prefs.temaClaro = e.target.checked;
+    salvarPrefs(prefs);
+    aplicarTema();
+  });
+
+  // Notificações
+  document.getElementById('toggleNotif').addEventListener('change', async (e) => {
+    if (e.target.checked) {
+      const perm = await pedirPermissao();
+      if (perm !== 'granted') {
+        e.target.checked = false;
+        alert('Permissão de notificação negada. Ative nas configurações do navegador.');
+        return;
+      }
+    }
+    const hora = document.getElementById('inputHoraNotif').value || '23:15';
+    const cfg  = { ativa: e.target.checked, hora };
+    salvarConfigNotif(cfg);
+    if (cfg.ativa) agendarNotificacao(hora);
+  });
+
+  document.getElementById('inputHoraNotif').addEventListener('change', (e) => {
+    const cfg = lerConfigNotif();
+    cfg.hora  = e.target.value;
+    salvarConfigNotif(cfg);
+    if (cfg.ativa) agendarNotificacao(cfg.hora);
+  });
+
+  // Retrospectiva: marcar dia passado
+  document.getElementById('btnSalvarRetro').addEventListener('click', salvarRetrospectiva);
 }
 
-// ─── Navegação por abas ───────────────────────────────────────────────────────
+// ── Tema ──────────────────────────────────────────────────────────
+
+function aplicarTema() {
+  const prefs = lerPrefs();
+  document.documentElement.classList.toggle('tema-claro', !!prefs.temaClaro);
+  const toggle = document.getElementById('toggleTema');
+  if (toggle) toggle.checked = !!prefs.temaClaro;
+}
+
+// ── Abas ──────────────────────────────────────────────────────────
 
 function trocarAba(aba) {
   document.querySelectorAll('.aba')
@@ -64,15 +123,15 @@ function trocarAba(aba) {
     .forEach(c => c.classList.toggle('ativa', c.id === `aba-${aba}`));
 
   if (aba === 'calendario') renderizarCalendario();
-  if (aba === 'dashboard')  renderizarDashboard();
+  if (aba === 'dashboard')  { renderizarDashboard(); renderizarGrafico(); }
+  if (aba === 'config')     carregarPainelConfig();
 }
 
-// ─── Calendário ───────────────────────────────────────────────────────────────
+// ── Calendário ────────────────────────────────────────────────────
 
 function renderizarCalendario() {
   const { dias, primeiroDia } = obterDadosMes(calAno, calMes);
 
-  // Título do mês
   const nomeMes = new Date(calAno, calMes, 1)
     .toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
   document.getElementById('tituloMes').textContent =
@@ -81,21 +140,19 @@ function renderizarCalendario() {
   const grid = document.getElementById('calendarioGrid');
   const frag = document.createDocumentFragment();
 
-  // Células vazias para offset do dia da semana
   const offset = primeiroDia.getDay();
   for (let i = 0; i < offset; i++) {
-    const vazio = document.createElement('div');
-    vazio.className = 'cal-dia vazio';
-    frag.appendChild(vazio);
+    const v = document.createElement('div');
+    v.className = 'cal-dia vazio';
+    frag.appendChild(v);
   }
 
   dias.forEach((d) => {
     const cel = document.createElement('div');
-    const cor = corProgresso(d.porcentagem, d.semDados);
-    let cls = `cal-dia cor-${cor}`;
+    let cls = `cal-dia cor-${corProgresso(d.porcentagem, d.semDados)}`;
     if (d.ehHoje)   cls += ' cal-hoje';
     if (d.isFuturo) cls += ' cal-futuro';
-    cel.className = cls;
+    cel.className   = cls;
     cel.textContent = d.dia;
     if (!d.isFuturo && !d.semDados) cel.title = `${d.porcentagem}%`;
 
@@ -107,24 +164,20 @@ function renderizarCalendario() {
         mostrarDetalheDia(d);
       });
     }
-
     frag.appendChild(cel);
   });
 
   grid.innerHTML = '';
   grid.appendChild(frag);
-
-  // Esconde detalhe ao trocar de mês
-  const detalhe = document.getElementById('detalhe-dia');
-  detalhe.style.display = 'none';
+  document.getElementById('detalhe-dia').style.display = 'none';
 }
 
 function mostrarDetalheDia(d) {
-  const dataFormatada = d.data.toLocaleDateString('pt-BR', {
+  const dataFmt = d.data.toLocaleDateString('pt-BR', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   });
   document.getElementById('detalhe-data').textContent =
-    dataFormatada.charAt(0).toUpperCase() + dataFormatada.slice(1);
+    dataFmt.charAt(0).toUpperCase() + dataFmt.slice(1);
   document.getElementById('detalhe-percentual').textContent =
     d.semDados ? '—' : `${d.porcentagem}%`;
 
@@ -133,14 +186,14 @@ function mostrarDetalheDia(d) {
 
   if (d.semDados && !d.ehHoje) {
     const li = document.createElement('li');
-    li.className = 'detalhe-sem-dados';
+    li.className   = 'detalhe-sem-dados';
     li.textContent = 'Sem dados registrados';
     frag.appendChild(li);
   } else {
     d.tarefas.forEach((t) => {
       const marcada = d.dadosMarcados[t.id] === true;
-      const li = document.createElement('li');
-      li.className = marcada ? 'detalhe-ok' : 'detalhe-nao';
+      const li      = document.createElement('li');
+      li.className  = marcada ? 'detalhe-ok' : 'detalhe-nao';
       li.textContent = `${marcada ? '✓' : '✗'} ${t.icone || ''} ${t.label}`.trim();
       frag.appendChild(li);
     });
@@ -148,23 +201,21 @@ function mostrarDetalheDia(d) {
 
   lista.innerHTML = '';
   lista.appendChild(frag);
-
-  const container = document.getElementById('detalhe-dia');
-  container.style.display = 'block';
+  document.getElementById('detalhe-dia').style.display = 'block';
 }
 
-// ─── Dashboard ────────────────────────────────────────────────────────────────
+// ── Dashboard ─────────────────────────────────────────────────────
 
 function renderizarDashboard() {
   const { melhorSequencia, diasPerfeitos, horasEstudadas, treinos, mediaGeral } = calcularDashboard();
-  document.getElementById('dash-melhor-seq').textContent    = `${melhorSequencia} dias`;
+  document.getElementById('dash-melhor-seq').textContent     = `${melhorSequencia} dias`;
   document.getElementById('dash-dias-perfeitos').textContent = diasPerfeitos;
   document.getElementById('dash-horas').textContent          = horasEstudadas;
   document.getElementById('dash-treinos').textContent        = treinos;
   document.getElementById('dash-media').textContent          = `${mediaGeral}%`;
 }
 
-// ─── Aba Hoje ─────────────────────────────────────────────────────────────────
+// ── Aba Hoje ──────────────────────────────────────────────────────
 
 function onCheckboxChange() {
   salvarDiaAtual();
@@ -173,34 +224,41 @@ function onCheckboxChange() {
 
 function carregarDiaAtual() {
   const dados = lerDados(CHAVE_HOJE);
-  const checkboxes = document.querySelectorAll('input[type="checkbox"]');
-  aplicarEstadoCheckboxes(checkboxes, dados);
+  aplicarEstadoCheckboxes(
+    document.querySelectorAll('input[type="checkbox"]'),
+    dados
+  );
 }
 
 function salvarDiaAtual() {
-  const checkboxes = document.querySelectorAll('input[type="checkbox"]');
-  salvarDados(CHAVE_HOJE, lerEstadoCheckboxes(checkboxes));
+  salvarDados(CHAVE_HOJE,
+    lerEstadoCheckboxes(document.querySelectorAll('input[type="checkbox"]'))
+  );
 }
 
 function atualizarTela() {
-  const checkboxes = Array.from(document.querySelectorAll('input[type="checkbox"]'));
-  const total    = checkboxes.length;
-  const marcados = checkboxes.filter(cb => cb.checked).length;
+  const cbs      = Array.from(document.querySelectorAll('input[type="checkbox"]'));
+  const total    = cbs.length;
+  const marcados = cbs.filter(cb => cb.checked).length;
   const pct      = total > 0 ? Math.round((marcados / total) * 100) : 0;
 
   atualizarBarraProgresso(pct);
+
+  // Confetti ao completar 100%
+  if (pct === 100 && _ultimoPct !== 100) dispararConfetti(pct);
+  else if (pct < 100) resetarConfetti();
+  _ultimoPct = pct;
 
   const historico = obterHistoricoUltimosDias(total, 7);
   renderizarHistorico(historico);
 
   const { dias, treinos } = contarDiasETreinosCompletos();
-  const sequencia = calcularSequencia(historico);
-  atualizarEstatisticas({ dias, treinos, sequencia });
+  atualizarEstatisticas({ dias, treinos, sequencia: calcularSequencia(historico) });
 }
 
-function salvarEdicaoTarefas(novasTarefas) {
-  salvarTarefas(novasTarefas);
-  tarefasAtuais = novasTarefas;
+function salvarEdicaoTarefas(novas) {
+  salvarTarefas(novas);
+  tarefasAtuais = novas;
   renderizarTarefas(tarefasAtuais, onCheckboxChange);
   carregarDiaAtual();
   atualizarTela();
@@ -208,21 +266,59 @@ function salvarEdicaoTarefas(novasTarefas) {
 }
 
 function contarDiasETreinosCompletos() {
-  let dias = 0;
-  let treinos = 0;
-
+  let dias = 0, treinos = 0;
   chavesDeDataValidas().forEach((chave) => {
     const dados = lerDados(chave);
     if (!dados) return;
-    const entradas = Object.entries(dados);
-    if (entradas.length > 0 && entradas.every(([, v]) => v)) dias++;
-    if (entradas.some(([id, v]) => v && id.toLowerCase().includes('treino'))) treinos++;
+    const ent = Object.entries(dados);
+    if (ent.length > 0 && ent.every(([, v]) => v)) dias++;
+    if (ent.some(([id, v]) => v && id.toLowerCase().includes('treino'))) treinos++;
   });
-
   return { dias, treinos };
 }
 
-// ─── Service Worker ───────────────────────────────────────────────────────────
+// ── Retrospectiva ─────────────────────────────────────────────────
+
+function salvarRetrospectiva() {
+  const inputData = document.getElementById('inputDataRetro').value;
+  if (!inputData) { alert('Selecione uma data.'); return; }
+
+  const checkboxes = document.querySelectorAll('.retro-check');
+  const dados = {};
+  checkboxes.forEach(cb => { dados[cb.dataset.id] = cb.checked; });
+
+  salvarDados(inputData, dados);
+  alert('Dia registrado com sucesso!');
+  document.getElementById('retroContainer').style.display = 'none';
+}
+
+function carregarPainelConfig() {
+  // Notificações
+  const cfg = lerConfigNotif();
+  document.getElementById('toggleNotif').checked  = cfg.ativa;
+  document.getElementById('inputHoraNotif').value  = cfg.hora;
+
+  // Retrospectiva: preencher lista de tarefas
+  const lista = document.getElementById('retroLista');
+  lista.innerHTML = '';
+  tarefasAtuais.forEach(t => {
+    const li = document.createElement('li');
+    li.innerHTML = `
+      <label style="display:flex;align-items:center;gap:10px;padding:8px 0;cursor:pointer">
+        <input type="checkbox" class="retro-check" data-id="${t.id}">
+        ${t.icone || ''} ${t.label}
+      </label>`;
+    lista.appendChild(li);
+  });
+
+  const inputData = document.getElementById('inputDataRetro');
+  const hoje = new Date();
+  hoje.setDate(hoje.getDate() - 1); // começa ontem
+  inputData.max   = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+  inputData.value = inputData.max;
+}
+
+// ── Service Worker ────────────────────────────────────────────────
 
 function registrarServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
