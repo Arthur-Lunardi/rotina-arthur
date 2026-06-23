@@ -1,5 +1,5 @@
 // app.js
-import { chaveHoje, lerDados, salvarDados, chavesDeDataValidas } from './storage.js';
+import { chaveHoje, lerDados, salvarDados } from './storage.js';
 import { obterHistoricoUltimosDias, calcularSequencia } from './historico.js';
 import {
   exibirDiaAtual,
@@ -14,7 +14,7 @@ import {
   inicializarModal,
 } from './ui.js';
 import { carregarTarefas, salvarTarefas } from './tarefas.js';
-import { obterDadosMes, calcularDashboard, corProgresso } from './calendario.js';
+import { obterDadosMes, calcularDashboard, corProgresso, contarDiasETreinos } from './calendario.js';
 
 registrarServiceWorker();
 
@@ -24,7 +24,6 @@ let tarefasAtuais = carregarTarefas();
 // Estado do calendário
 let calMes = new Date().getMonth();
 let calAno = new Date().getFullYear();
-let diaSelecionado = null;
 
 iniciar();
 
@@ -39,12 +38,10 @@ function iniciar() {
     abrirModalTarefas(tarefasAtuais);
   });
 
-  // Abas
   document.querySelectorAll('.aba').forEach((btn) => {
     btn.addEventListener('click', () => trocarAba(btn.dataset.aba));
   });
 
-  // Navegação do calendário
   document.getElementById('btnMesAnterior').addEventListener('click', () => {
     calMes--;
     if (calMes < 0) { calMes = 11; calAno--; }
@@ -90,14 +87,12 @@ function renderizarCalendario() {
     const cor = corProgresso(d.porcentagem, d.semDados);
     cel.className = `cal-dia cor-${cor}${d.ehHoje ? ' cal-hoje' : ''}${d.isFuturo ? ' cal-futuro' : ''}`;
     cel.textContent = d.dia;
-    cel.title = d.isFuturo ? '' : `${d.porcentagem}%`;
+    cel.title = d.isFuturo ? '' : d.semDados ? 'Sem dados' : `${d.porcentagem}%`;
 
     if (!d.isFuturo) {
       cel.addEventListener('click', () => {
-        // Remove seleção anterior
         document.querySelectorAll('.cal-dia.selecionado').forEach(el => el.classList.remove('selecionado'));
         cel.classList.add('selecionado');
-        diaSelecionado = d;
         mostrarDetalheDia(d);
       });
     }
@@ -105,16 +100,18 @@ function renderizarCalendario() {
     grid.appendChild(cel);
   });
 
-  // Esconde detalhe ao trocar de mês
   document.getElementById('detalhe-dia').style.display = 'none';
 }
 
 function mostrarDetalheDia(d) {
   const container = document.getElementById('detalhe-dia');
-  const dataFormatada = d.data.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const dataFormatada = d.data.toLocaleDateString('pt-BR', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+  });
   document.getElementById('detalhe-data').textContent =
     dataFormatada.charAt(0).toUpperCase() + dataFormatada.slice(1);
-  document.getElementById('detalhe-percentual').textContent = d.semDados ? '—' : `${d.porcentagem}%`;
+  document.getElementById('detalhe-percentual').textContent =
+    d.semDados && !d.ehHoje ? '—' : `${d.porcentagem}%`;
 
   const lista = document.getElementById('detalhe-lista');
   lista.innerHTML = '';
@@ -179,7 +176,7 @@ function atualizarTela() {
   const historico = obterHistoricoUltimosDias(total, 7);
   renderizarHistorico(historico);
 
-  const { dias, treinos } = contarDiasETreinosCompletos();
+  const { dias, treinos } = contarDiasETreinos(); // usa função centralizada
   const sequencia = calcularSequencia(historico);
   atualizarEstatisticas({ dias, treinos, sequencia });
 }
@@ -191,22 +188,6 @@ function salvarEdicaoTarefas(novasTarefas) {
   carregarDiaAtual();
   atualizarTela();
   fecharModalTarefas();
-}
-
-function contarDiasETreinosCompletos() {
-  let dias = 0;
-  let treinos = 0;
-
-  chavesDeDataValidas().forEach((chave) => {
-    const dados = lerDados(chave);
-    if (!dados) return;
-    const valores = Object.values(dados);
-    if (valores.length > 0 && valores.every((v) => v)) dias++;
-    const temTreino = Object.entries(dados).some(([id, val]) => val && id.toLowerCase().includes('treino'));
-    if (temTreino) treinos++;
-  });
-
-  return { dias, treinos };
 }
 
 function registrarServiceWorker() {

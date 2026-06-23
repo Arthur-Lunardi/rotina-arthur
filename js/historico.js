@@ -8,8 +8,6 @@ import { formatarChave, lerDados } from './storage.js';
  * Monta os últimos N dias (hoje incluso) com informações de progresso de cada um.
  * @param {number} totalTarefas - quantidade total de tarefas do checklist
  * @param {number} quantidadeDias - quantos dias olhar pra trás (padrão: 7)
- * @returns {Array} lista do dia mais antigo pro mais recente, cada item com:
- *   { data, chave, porcentagem, completo, ehHoje }
  */
 export function obterHistoricoUltimosDias(totalTarefas, quantidadeDias = 7) {
   const hoje = new Date();
@@ -22,17 +20,11 @@ export function obterHistoricoUltimosDias(totalTarefas, quantidadeDias = 7) {
     const chave = formatarChave(data);
     const dados = lerDados(chave);
 
-    const marcadas = dados ? Object.values(dados).filter((v) => v).length : 0;
+    const marcadas = dados ? Object.values(dados).filter(Boolean).length : 0;
     const porcentagem = totalTarefas > 0 ? Math.round((marcadas / totalTarefas) * 100) : 0;
-    const completo = dados !== null && marcadas === totalTarefas;
+    const completo = dados !== null && marcadas === totalTarefas && totalTarefas > 0;
 
-    dias.push({
-      data,
-      chave,
-      porcentagem,
-      completo,
-      ehHoje: i === 0,
-    });
+    dias.push({ data, chave, porcentagem, completo, ehHoje: i === 0 });
   }
 
   return dias;
@@ -44,22 +36,12 @@ export function obterHistoricoUltimosDias(totalTarefas, quantidadeDias = 7) {
  * incompleto, já que o dia ainda não terminou.
  */
 export function calcularSequencia(historico) {
-  // historico vem do mais antigo pro mais recente — percorremos de trás pra frente (hoje primeiro)
   let sequencia = 0;
 
   for (let i = historico.length - 1; i >= 0; i--) {
     const dia = historico[i];
-
-    if (dia.completo) {
-      sequencia++;
-      continue;
-    }
-
-    if (dia.ehHoje) {
-      // hoje ainda não terminou, não conta nem quebra
-      continue;
-    }
-
+    if (dia.completo) { sequencia++; continue; }
+    if (dia.ehHoje) continue; // hoje não quebra
     break;
   }
 
