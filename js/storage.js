@@ -16,7 +16,13 @@ export function lerDados(chave) {
 }
 
 export function salvarDados(chave, dados) {
-  localStorage.setItem(chave, JSON.stringify(dados));
+  try {
+    localStorage.setItem(chave, JSON.stringify(dados));
+    return true;
+  } catch (e) {
+    console.error('Erro ao salvar dados:', e);
+    return false;
+  }
 }
 
 export function chavesDeDataValidas() {
@@ -39,5 +45,9 @@ export function lerPrefs() {
 }
 
 export function salvarPrefs(prefs) {
-  localStorage.setItem(CHAVE_PREFS, JSON.stringify(prefs));
+  try {
+    localStorage.setItem(CHAVE_PREFS, JSON.stringify(prefs));
+  } catch (e) {
+    console.error('Erro ao salvar preferências:', e);
+  }
 }

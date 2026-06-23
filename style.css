@@ -1010,3 +1010,89 @@ body {
 
 .toggle-switch input:checked + .toggle-slider { background: var(--green); }
 .toggle-switch input:checked + .toggle-slider::before { transform: translateX(22px); }
+
+/* ═══════════════════════════════════════════════════════════════
+   MELHORIAS v3 — Validação, Feedback, Acessibilidade
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Input com erro de validação */
+.modal-input-label[style*="border-color: rgb(239, 68, 68)"],
+.modal-input-label.erro {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);
+}
+
+/* Contador de caracteres no label (futuro) */
+.modal-input-label:focus {
+  border-color: var(--green);
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.15);
+}
+
+/* Toast com variante de erro */
+.toast-undo.erro {
+  border-color: #ef4444;
+  background: #1e293b;
+}
+
+/* Botão salvar retrospectiva — estado loading */
+#btnSalvarRetro:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Focus visible aprimorado para teclado */
+:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Animação de entrada para itens restaurados via desfazer */
+@keyframes entrar {
+  from { opacity: 0; transform: translateX(-16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.modal-linha {
+  animation: entrar 0.18s ease;
+}
+
+/* Retrolist — melhor espaçamento */
+#retroLista {
+  margin-top: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+#retroLista::-webkit-scrollbar       { width: 4px; }
+#retroLista::-webkit-scrollbar-track { background: transparent; }
+#retroLista::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+
+/* Subtítulo de config com padding melhorado */
+.config-secao:first-child {
+  border-top: none;
+}
+
+/* Tema claro: ajuste de cor do handle */
+.tema-claro .drag-handle { color: var(--text-muted); }
+
+/* Indicador de "arrastar" visível em mobile */
+@media (max-width: 600px) {
+  .drag-handle {
+    font-size: 20px;
+    padding: 0 6px;
+    opacity: 0.8;
+  }
+}
+
+/* Melhora touch targets em mobile */
+@media (max-width: 600px) {
+  .btn-remover-tarefa {
+    min-width: 40px;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}

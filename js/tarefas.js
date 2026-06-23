@@ -20,9 +20,27 @@ export function carregarTarefas() {
 }
 
 export function salvarTarefas(tarefas) {
-  localStorage.setItem(CHAVE_TAREFAS, JSON.stringify(tarefas));
+  try {
+    localStorage.setItem(CHAVE_TAREFAS, JSON.stringify(tarefas));
+    return true;
+  } catch (e) {
+    console.error('Erro ao salvar tarefas:', e);
+    return false;
+  }
 }
 
 export function gerarId() {
-  return 'tarefa_' + Date.now();
+  return 'tarefa_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+}
+
+/**
+ * Valida uma tarefa antes de salvar
+ */
+export function validarTarefa(label, icone = '') {
+  const erros = [];
+  const labelTrim = label.trim();
+  if (!labelTrim) erros.push('O nome da tarefa não pode estar vazio.');
+  if (labelTrim.length > 60) erros.push('O nome deve ter no máximo 60 caracteres.');
+  if (icone.trim().length > 2) erros.push('O ícone deve ter no máximo 1 emoji.');
+  return erros;
 }

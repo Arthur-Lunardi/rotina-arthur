@@ -1,4 +1,4 @@
-const CACHE_NAME = 'rotina-arthur-v5';
+const CACHE_NAME = 'rotina-arthur-v6';
 
 const ARQUIVOS = [
   './', './index.html', './style.css', './manifest.json',

@@ -6,6 +6,7 @@ import {
   renderizarHistorico, lerEstadoCheckboxes, aplicarEstadoCheckboxes,
   renderizarTarefas, abrirModalTarefas, fecharModalTarefas,
   inicializarModal, abrirConfiguracoes, fecharConfiguracoes,
+  mostrarToast,
 } from './ui.js';
 import { carregarTarefas, salvarTarefas } from './tarefas.js';
 import { obterDadosMes, calcularDashboard, corProgresso } from './calendario.js';
@@ -38,6 +39,7 @@ function iniciar() {
   inicializarModal({ onSalvar: salvarEdicaoTarefas, onCancelar: fecharModalTarefas });
   inicializarNotificacoes();
   _bindEventos();
+  _bindBeforeUnload();
 }
 
 function _bindEventos() {
@@ -46,7 +48,7 @@ function _bindEventos() {
 
   // Botão de configurações no header
   document.getElementById('btnConfiguracoes')
-    .addEventListener('click', abrirConfiguracoes);
+    .addEventListener('click', () => { abrirConfiguracoes(); carregarPainelConfig(); });
   document.getElementById('btnFecharConfig')
     .addEventListener('click', fecharConfiguracoes);
   document.getElementById('configOverlay')
@@ -84,7 +86,7 @@ function _bindEventos() {
       const perm = await pedirPermissao();
       if (perm !== 'granted') {
         e.target.checked = false;
-        alert('Permissão de notificação negada. Ative nas configurações do navegador.');
+        mostrarToast('⚠️ Permissão de notificação negada. Ative nas configurações do navegador.', '', null, 4000);
         return;
       }
     }
@@ -92,6 +94,7 @@ function _bindEventos() {
     const cfg  = { ativa: e.target.checked, hora };
     salvarConfigNotif(cfg);
     if (cfg.ativa) agendarNotificacao(hora);
+    mostrarToast(cfg.ativa ? '🔔 Lembrete ativado' : '🔕 Lembrete desativado', '', null, 2500);
   });
 
   document.getElementById('inputHoraNotif').addEventListener('change', (e) => {
@@ -99,10 +102,29 @@ function _bindEventos() {
     cfg.hora  = e.target.value;
     salvarConfigNotif(cfg);
     if (cfg.ativa) agendarNotificacao(cfg.hora);
+    mostrarToast('🕐 Horário atualizado', '', null, 2000);
   });
 
-  // Retrospectiva: marcar dia passado
+  // Retrospectiva: renderiza tarefas quando data muda
+  document.getElementById('inputDataRetro').addEventListener('change', (e) => {
+    _renderizarRetroLista(e.target.value);
+  });
+
+  // Retrospectiva: salvar
   document.getElementById('btnSalvarRetro').addEventListener('click', salvarRetrospectiva);
+}
+
+// ── Proteção beforeunload ─────────────────────────────────────────
+
+function _bindBeforeUnload() {
+  // Não bloqueia PWA/mobile — só desktop ao recarregar
+  window.addEventListener('beforeunload', (e) => {
+    const modalAberto = document.getElementById('modalOverlay').classList.contains('aberto');
+    if (modalAberto) {
+      e.preventDefault();
+      e.returnValue = '';
+    }
+  });
 }
 
 // ── Tema ──────────────────────────────────────────────────────────
@@ -124,7 +146,6 @@ function trocarAba(aba) {
 
   if (aba === 'calendario') renderizarCalendario();
   if (aba === 'dashboard')  { renderizarDashboard(); renderizarGrafico(); }
-  if (aba === 'config')     carregarPainelConfig();
 }
 
 // ── Calendário ────────────────────────────────────────────────────
@@ -244,7 +265,6 @@ function atualizarTela() {
 
   atualizarBarraProgresso(pct);
 
-  // Confetti ao completar 100%
   if (pct === 100 && _ultimoPct !== 100) dispararConfetti(pct);
   else if (pct < 100) resetarConfetti();
   _ultimoPct = pct;
@@ -263,6 +283,7 @@ function salvarEdicaoTarefas(novas) {
   carregarDiaAtual();
   atualizarTela();
   fecharModalTarefas();
+  mostrarToast('✅ Tarefas salvas com sucesso!', '', null, 2500);
 }
 
 function contarDiasETreinosCompletos() {
@@ -279,43 +300,86 @@ function contarDiasETreinosCompletos() {
 
 // ── Retrospectiva ─────────────────────────────────────────────────
 
+function _renderizarRetroLista(dataISO) {
+  const lista = document.getElementById('retroLista');
+  lista.innerHTML = '';
+
+  if (!dataISO) return;
+
+  // Carrega dados já existentes para aquela data (se houver)
+  const dadosExistentes = lerDados(dataISO) || {};
+
+  tarefasAtuais.forEach(t => {
+    const li  = document.createElement('li');
+    const jaMarcada = dadosExistentes[t.id] === true;
+    li.innerHTML = `
+      <label style="display:flex;align-items:center;gap:10px;padding:8px 0;cursor:pointer;font-size:15px">
+        <input type="checkbox" class="retro-check" data-id="${t.id}" ${jaMarcada ? 'checked' : ''}>
+        ${t.icone || ''} ${t.label}
+      </label>`;
+    lista.appendChild(li);
+  });
+}
+
 function salvarRetrospectiva() {
   const inputData = document.getElementById('inputDataRetro').value;
-  if (!inputData) { alert('Selecione uma data.'); return; }
+  if (!inputData) {
+    mostrarToast('⚠️ Selecione uma data.', '', null, 2500);
+    return;
+  }
+
+  // Validar: não permite data futura
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  const dataSel = new Date(inputData + 'T00:00:00');
+  if (dataSel >= hoje) {
+    mostrarToast('⚠️ Selecione uma data passada.', '', null, 2500);
+    return;
+  }
 
   const checkboxes = document.querySelectorAll('.retro-check');
+  if (checkboxes.length === 0) {
+    mostrarToast('⚠️ Nenhuma tarefa disponível.', '', null, 2500);
+    return;
+  }
+
   const dados = {};
   checkboxes.forEach(cb => { dados[cb.dataset.id] = cb.checked; });
 
-  salvarDados(inputData, dados);
-  alert('Dia registrado com sucesso!');
-  document.getElementById('retroContainer').style.display = 'none';
+  const ok = salvarDados(inputData, dados);
+  if (ok) {
+    mostrarToast('✅ Dia registrado com sucesso!', '', null, 3000);
+    // Atualiza tela principal se necessário
+    atualizarTela();
+  } else {
+    mostrarToast('❌ Erro ao salvar. Tente novamente.', '', null, 3000);
+  }
 }
 
 function carregarPainelConfig() {
+  // Tema
+  const prefs = lerPrefs();
+  const toggleTema = document.getElementById('toggleTema');
+  if (toggleTema) toggleTema.checked = !!prefs.temaClaro;
+
   // Notificações
   const cfg = lerConfigNotif();
   document.getElementById('toggleNotif').checked  = cfg.ativa;
   document.getElementById('inputHoraNotif').value  = cfg.hora;
 
-  // Retrospectiva: preencher lista de tarefas
-  const lista = document.getElementById('retroLista');
-  lista.innerHTML = '';
-  tarefasAtuais.forEach(t => {
-    const li = document.createElement('li');
-    li.innerHTML = `
-      <label style="display:flex;align-items:center;gap:10px;padding:8px 0;cursor:pointer">
-        <input type="checkbox" class="retro-check" data-id="${t.id}">
-        ${t.icone || ''} ${t.label}
-      </label>`;
-    lista.appendChild(li);
-  });
-
+  // Retrospectiva: configura data máxima (ontem)
   const inputData = document.getElementById('inputDataRetro');
-  const hoje = new Date();
-  hoje.setDate(hoje.getDate() - 1); // começa ontem
-  inputData.max   = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-  inputData.value = inputData.max;
+  const ontem = new Date();
+  ontem.setDate(ontem.getDate() - 1);
+  inputData.max = ontem.toISOString().split('T')[0];
+
+  // Mantém valor se já estava preenchido; caso contrário, vai para ontem
+  if (!inputData.value || inputData.value >= ontem.toISOString().split('T')[0]) {
+    inputData.value = inputData.max;
+  }
+
+  // Renderiza lista de tarefas para a data atual
+  _renderizarRetroLista(inputData.value);
 }
 
 // ── Service Worker ────────────────────────────────────────────────
