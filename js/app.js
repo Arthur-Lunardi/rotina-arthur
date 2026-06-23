@@ -243,22 +243,21 @@ function onCheckboxChange() {
   atualizarTela();
 }
 
+function _checkboxesTarefas() {
+  return document.querySelectorAll('#cardTarefas input[type="checkbox"]');
+}
+
 function carregarDiaAtual() {
   const dados = lerDados(CHAVE_HOJE);
-  aplicarEstadoCheckboxes(
-    document.querySelectorAll('input[type="checkbox"]'),
-    dados
-  );
+  aplicarEstadoCheckboxes(_checkboxesTarefas(), dados);
 }
 
 function salvarDiaAtual() {
-  salvarDados(CHAVE_HOJE,
-    lerEstadoCheckboxes(document.querySelectorAll('input[type="checkbox"]'))
-  );
+  salvarDados(CHAVE_HOJE, lerEstadoCheckboxes(_checkboxesTarefas()));
 }
 
 function atualizarTela() {
-  const cbs      = Array.from(document.querySelectorAll('input[type="checkbox"]'));
+  const cbs      = Array.from(_checkboxesTarefas());
   const total    = cbs.length;
   const marcados = cbs.filter(cb => cb.checked).length;
   const pct      = total > 0 ? Math.round((marcados / total) * 100) : 0;
@@ -328,12 +327,10 @@ function salvarRetrospectiva() {
     return;
   }
 
-  // Validar: não permite data futura
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
-  const dataSel = new Date(inputData + 'T00:00:00');
-  if (dataSel >= hoje) {
-    mostrarToast('⚠️ Selecione uma data passada.', '', null, 2500);
+  // Validar: não permite data de hoje ou futura (comparação em string ISO é segura)
+  const hojeISO = new Date().toISOString().split('T')[0];
+  if (inputData >= hojeISO) {
+    mostrarToast('⚠️ Selecione uma data anterior a hoje.', '', null, 2500);
     return;
   }
 
@@ -364,21 +361,23 @@ function carregarPainelConfig() {
 
   // Notificações
   const cfg = lerConfigNotif();
-  document.getElementById('toggleNotif').checked  = cfg.ativa;
-  document.getElementById('inputHoraNotif').value  = cfg.hora;
+  document.getElementById('toggleNotif').checked = cfg.ativa;
+  document.getElementById('inputHoraNotif').value = cfg.hora;
 
-  // Retrospectiva: configura data máxima (ontem)
+  // Retrospectiva: configura data máxima (ontem) e mínima (há 365 dias)
   const inputData = document.getElementById('inputDataRetro');
   const ontem = new Date();
   ontem.setDate(ontem.getDate() - 1);
+  const minDate = new Date();
+  minDate.setFullYear(minDate.getFullYear() - 1);
+
   inputData.max = ontem.toISOString().split('T')[0];
+  inputData.min = minDate.toISOString().split('T')[0];
 
-  // Mantém valor se já estava preenchido; caso contrário, vai para ontem
-  if (!inputData.value || inputData.value >= ontem.toISOString().split('T')[0]) {
-    inputData.value = inputData.max;
-  }
+  // Sempre define para ontem ao abrir (para garantir estado limpo)
+  inputData.value = inputData.max;
 
-  // Renderiza lista de tarefas para a data atual
+  // Renderiza lista de tarefas para ontem
   _renderizarRetroLista(inputData.value);
 }
 
