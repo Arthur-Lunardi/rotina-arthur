@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Rotina Arthur</title>
 
   <link rel="stylesheet" href="style.css">
@@ -79,12 +79,12 @@
   <div id="aba-calendario" class="aba-conteudo">
     <div class="card calendario-card">
       <div class="calendario-header">
-        <button class="btn-mes" id="btnMesAnterior">‹</button>
+        <button class="btn-mes" id="btnMesAnterior" aria-label="Mês anterior">‹</button>
         <h3 id="tituloMes">Junho 2026</h3>
-        <button class="btn-mes" id="btnProximoMes">›</button>
+        <button class="btn-mes" id="btnProximoMes" aria-label="Próximo mês">›</button>
       </div>
 
-      <div class="calendario-semana">
+      <div class="calendario-semana" aria-hidden="true">
         <span>D</span><span>S</span><span>T</span><span>Q</span><span>Q</span><span>S</span><span>S</span>
       </div>
 
