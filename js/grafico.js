@@ -22,8 +22,11 @@ export function renderizarGrafico() {
   const pontos = ultimas.map((chave) => {
     const dados = lerDados(chave);
     if (!dados) return { chave, pct: 0 };
-    const marcadas = Object.values(dados).filter(Boolean).length;
-    return { chave, pct: total > 0 ? Math.round((marcadas / total) * 100) : 0 };
+    const valores  = Object.values(dados);
+    const marcadas = valores.filter(Boolean).length;
+    // Usa total do próprio dia salvo; fallback para total atual
+    const totalDia = valores.length || total;
+    return { chave, pct: totalDia > 0 ? Math.round((marcadas / totalDia) * 100) : 0 };
   });
 
   canvas.style.display = 'block';

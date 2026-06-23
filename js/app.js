@@ -297,6 +297,7 @@ function contarDiasETreinosCompletos() {
   return { dias, treinos };
 }
 
+
 // ── Retrospectiva ─────────────────────────────────────────────────
 
 function _renderizarRetroLista(dataISO) {

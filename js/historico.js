@@ -11,7 +11,7 @@ import { formatarChave, lerDados } from './storage.js';
  * @returns {Array} lista do dia mais antigo pro mais recente, cada item com:
  *   { data, chave, porcentagem, completo, ehHoje }
  */
-export function obterHistoricoUltimosDias(totalTarefas, quantidadeDias = 7) {
+export function obterHistoricoUltimosDias(totalTarefasAtual, quantidadeDias = 7) {
   const hoje = new Date();
   const dias = [];
 
@@ -19,19 +19,26 @@ export function obterHistoricoUltimosDias(totalTarefas, quantidadeDias = 7) {
     const data = new Date(hoje);
     data.setDate(hoje.getDate() - i);
 
-    const chave = formatarChave(data);
-    const dados = lerDados(chave);
+    const chave  = formatarChave(data);
+    const dados  = lerDados(chave);
+    const ehHoje = i === 0;
 
-    const marcadas = dados ? Object.values(dados).filter((v) => v).length : 0;
-    const porcentagem = totalTarefas > 0 ? Math.round((marcadas / totalTarefas) * 100) : 0;
-    const completo = dados !== null && marcadas === totalTarefas;
+    // Para dias passados: usa o total de entradas salvas naquele dia
+    // Para hoje: usa o total atual de tarefas na tela
+    const valores  = dados ? Object.values(dados) : [];
+    const totalDia = ehHoje ? totalTarefasAtual : (valores.length || totalTarefasAtual);
+    const marcadas = valores.filter(Boolean).length;
+
+    const porcentagem = totalDia > 0 ? Math.round((marcadas / totalDia) * 100) : 0;
+    // Completo = tem dados E todas as tarefas marcadas
+    const completo = dados !== null && valores.length > 0 && marcadas === valores.length;
 
     dias.push({
       data,
       chave,
       porcentagem,
       completo,
-      ehHoje: i === 0,
+      ehHoje,
     });
   }
 

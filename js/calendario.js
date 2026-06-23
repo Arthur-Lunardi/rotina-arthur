@@ -34,9 +34,14 @@ export function obterDadosMes(ano, mes) {
     const dados = lerDados(chave);
 
     const isFuturo = data > hoje && formatarChave(data) !== formatarChave(hoje);
-    const marcadas = dados ? Object.values(dados).filter(Boolean).length : 0;
-    const porcentagem = totalTarefas > 0 ? Math.round((marcadas / totalTarefas) * 100) : 0;
-    const semDados = dados === null || isFuturo;
+    const ehHoje   = formatarChave(data) === formatarChave(hoje);
+    const valores  = dados ? Object.values(dados) : [];
+    const marcadas = valores.filter(Boolean).length;
+
+    // Usa o total do próprio dia salvo; fallback para total atual
+    const totalDia    = ehHoje ? totalTarefas : (valores.length || totalTarefas);
+    const porcentagem = totalDia > 0 ? Math.round((marcadas / totalDia) * 100) : 0;
+    const semDados    = dados === null || isFuturo;
 
     dias.push({
       dia: d,
@@ -45,7 +50,7 @@ export function obterDadosMes(ano, mes) {
       porcentagem,
       semDados,
       isFuturo,
-      ehHoje: formatarChave(data) === formatarChave(hoje),
+      ehHoje,
       diaSemana: data.getDay(), // 0=dom
       tarefas,
       dadosMarcados: dados || {},
@@ -99,8 +104,10 @@ export function calcularDashboard() {
     const valores = Object.values(dados);
     if (valores.length === 0) return;
 
-    const marcadas = valores.filter(Boolean).length;
-    const porcentagem = totalTarefas > 0 ? Math.round((marcadas / totalTarefas) * 100) : 0;
+    const marcadas   = valores.filter(Boolean).length;
+    // Usa o total salvo naquele dia (não o total atual de tarefas)
+    const totalDia   = valores.length;
+    const porcentagem = Math.round((marcadas / totalDia) * 100);
 
     diasComDados++;
     totalPorcentagem += porcentagem;
@@ -130,9 +137,10 @@ export function calcularDashboard() {
     const chave = todasChavesOrdenadas[i];
     const dados = lerDados(chave);
     if (!dados) break;
-    const valores = Object.values(dados);
+    const valores  = Object.values(dados);
     const marcadas = valores.filter(Boolean).length;
-    const porcentagem = totalTarefas > 0 ? Math.round((marcadas / totalTarefas) * 100) : 0;
+    // Usa o total do próprio dia
+    const porcentagem = valores.length > 0 ? Math.round((marcadas / valores.length) * 100) : 0;
     if (porcentagem === 100) {
       sequenciaHoje++;
     } else if (chave !== hoje) {
