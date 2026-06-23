@@ -248,8 +248,21 @@ function _checkboxesTarefas() {
 }
 
 function carregarDiaAtual() {
-  const dados = lerDados(CHAVE_HOJE);
-  aplicarEstadoCheckboxes(_checkboxesTarefas(), dados);
+  const dadosBrutos = lerDados(CHAVE_HOJE);
+
+  // Remove chaves obsoletas (tarefas que não existem mais)
+  if (dadosBrutos) {
+    const idsAtuais = new Set(tarefasAtuais.map(t => t.id));
+    const dadosLimpos = {};
+    idsAtuais.forEach(id => { dadosLimpos[id] = dadosBrutos[id] || false; });
+    // Só resalva se havia chaves a mais
+    if (Object.keys(dadosBrutos).length !== Object.keys(dadosLimpos).length) {
+      salvarDados(CHAVE_HOJE, dadosLimpos);
+    }
+    aplicarEstadoCheckboxes(_checkboxesTarefas(), dadosLimpos);
+  } else {
+    aplicarEstadoCheckboxes(_checkboxesTarefas(), null);
+  }
 }
 
 function salvarDiaAtual() {
