@@ -253,7 +253,9 @@ function carregarDiaAtual() {
 }
 
 function salvarDiaAtual() {
-  salvarDados(CHAVE_HOJE, lerEstadoCheckboxes(_checkboxesTarefas()));
+  // Salva apenas as tarefas atuais — remove chaves obsoletas de tarefas deletadas
+  const dadosNovos = lerEstadoCheckboxes(_checkboxesTarefas());
+  salvarDados(CHAVE_HOJE, dadosNovos);
 }
 
 function atualizarTela() {
@@ -280,6 +282,14 @@ function salvarEdicaoTarefas(novas) {
   tarefasAtuais = novas;
   renderizarTarefas(tarefasAtuais, onCheckboxChange);
   carregarDiaAtual();
+
+  // Remove chaves obsoletas do dia de hoje (tarefas que foram deletadas)
+  const idsAtuais = new Set(novas.map(t => t.id));
+  const dadosHoje = lerDados(CHAVE_HOJE) || {};
+  const dadosLimpos = {};
+  idsAtuais.forEach(id => { dadosLimpos[id] = dadosHoje[id] || false; });
+  salvarDados(CHAVE_HOJE, dadosLimpos);
+
   atualizarTela();
   fecharModalTarefas();
   mostrarToast('✅ Tarefas salvas com sucesso!', '', null, 2500);

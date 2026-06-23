@@ -30,8 +30,8 @@ export function obterHistoricoUltimosDias(totalTarefasAtual, quantidadeDias = 7)
     const marcadas = valores.filter(Boolean).length;
 
     const porcentagem = totalDia > 0 ? Math.round((marcadas / totalDia) * 100) : 0;
-    // Completo = tem dados E todas as tarefas marcadas
-    const completo = dados !== null && valores.length > 0 && marcadas === valores.length;
+    // Completo = todas as tarefas do totalDia correto estão marcadas
+    const completo = dados !== null && totalDia > 0 && marcadas >= totalDia;
 
     dias.push({
       data,
