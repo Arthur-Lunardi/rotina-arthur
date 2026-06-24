@@ -33,7 +33,9 @@ export function renderizarGrafico() {
 
   // DPR para telas retina
   const dpr = window.devicePixelRatio || 1;
-  const W   = canvas.offsetWidth  || canvas.parentElement.offsetWidth || 300;
+  // Garante leitura correta da largura no mobile (usa o pai, não o canvas)
+  const parent = canvas.parentElement;
+  const W   = Math.floor(parent.clientWidth - 40) || 300; // desconta padding do card
   const H   = 160;
   canvas.width  = W * dpr;
   canvas.height = H * dpr;

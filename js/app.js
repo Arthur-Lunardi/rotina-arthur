@@ -1,4 +1,4 @@
-// app.js — ponto de entrada principal
+// app.js — ponto de entrada principal (v4)
 import { chaveHoje, lerDados, salvarDados, chavesDeDataValidas, lerPrefs, salvarPrefs } from './storage.js';
 import { obterHistoricoUltimosDias, calcularSequencia } from './historico.js';
 import {
@@ -8,9 +8,15 @@ import {
   inicializarModal, abrirConfiguracoes, fecharConfiguracoes,
   mostrarToast,
 } from './ui.js';
-import { carregarTarefas, salvarTarefas } from './tarefas.js';
+import {
+  carregarTarefas, salvarTarefas,
+  carregarGrupos, salvarGrupos,
+  tarefasParaHoje, tarefasParaData,
+  carregarHorasEstudo, salvarMinutosEstudo, minutosParaTexto,
+  gerarGrupoId,
+} from './tarefas.js';
 import { obterDadosMes, calcularDashboard, corProgresso } from './calendario.js';
-import { exportarCSV } from './exportar.js';
+import { exportarCSV, exportarBackupJSON, importarBackupJSON } from './exportar.js';
 import { dispararConfetti, resetarConfetti } from './confetti.js';
 import { renderizarGrafico } from './grafico.js';
 import {
@@ -21,7 +27,9 @@ import {
 registrarServiceWorker();
 
 const CHAVE_HOJE = chaveHoje();
-let tarefasAtuais = carregarTarefas();
+let tarefasTodas   = carregarTarefas();   // todas as tarefas cadastradas
+let gruposAtuais   = carregarGrupos();    // grupos de dias
+let tarefasAtuais  = tarefasParaHoje(tarefasTodas, gruposAtuais); // tarefas de hoje
 let calMes  = new Date().getMonth();
 let calAno  = new Date().getFullYear();
 let _ultimoPct = -1;
@@ -44,9 +52,8 @@ function iniciar() {
 
 function _bindEventos() {
   document.getElementById('btnEditarTarefas')
-    .addEventListener('click', () => abrirModalTarefas(tarefasAtuais));
+    .addEventListener('click', () => abrirModalTarefas(tarefasTodas));
 
-  // Botão de configurações no header
   document.getElementById('btnConfiguracoes')
     .addEventListener('click', () => { abrirConfiguracoes(); carregarPainelConfig(); });
   document.getElementById('btnFecharConfig')
@@ -71,6 +78,37 @@ function _bindEventos() {
   // Exportar CSV
   document.getElementById('btnExportarCSV')
     .addEventListener('click', exportarCSV);
+
+  // Backup JSON
+  document.getElementById('btnExportarBackup')
+    .addEventListener('click', () => {
+      exportarBackupJSON();
+      mostrarToast('📤 Backup exportado com sucesso!', '', null, 2500);
+    });
+
+  document.getElementById('btnImportarBackup')
+    .addEventListener('click', () => document.getElementById('inputImportarBackup').click());
+
+  document.getElementById('inputImportarBackup')
+    .addEventListener('change', async (e) => {
+      const arquivo = e.target.files[0];
+      if (!arquivo) return;
+      try {
+        const resultado = await importarBackupJSON(arquivo);
+        // Recarrega tudo
+        tarefasTodas  = carregarTarefas();
+        gruposAtuais  = carregarGrupos();
+        tarefasAtuais = tarefasParaHoje(tarefasTodas, gruposAtuais);
+        renderizarTarefas(tarefasAtuais, onCheckboxChange);
+        carregarDiaAtual();
+        atualizarTela();
+        aplicarTema();
+        mostrarToast(`✅ Backup importado: ${resultado.tarefas} tarefas, ${resultado.dias} dias`, '', null, 4000);
+      } catch (err) {
+        mostrarToast(`❌ Erro ao importar: ${err.message}`, '', null, 4000);
+      }
+      e.target.value = '';
+    });
 
   // Tema
   document.getElementById('toggleTema').addEventListener('change', (e) => {
@@ -105,25 +143,48 @@ function _bindEventos() {
     mostrarToast('🕐 Horário atualizado', '', null, 2000);
   });
 
-  // Retrospectiva: renderiza tarefas quando data muda
+  // Retrospectiva
   document.getElementById('inputDataRetro').addEventListener('change', (e) => {
     _renderizarRetroLista(e.target.value);
   });
-
-  // Retrospectiva: salvar
   document.getElementById('btnSalvarRetro').addEventListener('click', salvarRetrospectiva);
+
+  // Grupos de dias
+  document.getElementById('btnGerenciarGrupos')
+    .addEventListener('click', abrirModalGrupos);
+
+  // Horas de estudo (modal ao clicar em "Estudei")
+  document.addEventListener('click', (e) => {
+    const label = e.target.closest('label');
+    if (!label) return;
+    const cb = label.querySelector('input[type="checkbox"]');
+    if (!cb) return;
+    const tarefa = tarefasAtuais.find(t => t.id === cb.id);
+    // Abre modal de horas somente para tarefas de estudo quando marcando
+    if (tarefa && tarefa.id.toLowerCase().includes('estud') && cb.checked) {
+      e.preventDefault();
+      cb.checked = false; // desfaz temporariamente
+      abrirModalHorasEstudo(tarefa, cb);
+    }
+  });
+
+  // Redimensionar
+  let _resizeTimer = null;
+  const _onResize = () => {
+    clearTimeout(_resizeTimer);
+    _resizeTimer = setTimeout(() => {
+      const abaAtiva = document.querySelector('.aba-conteudo.ativa');
+      if (abaAtiva && abaAtiva.id === 'aba-dashboard') renderizarGrafico();
+    }, 150);
+  };
+  window.addEventListener('resize', _onResize);
+  window.addEventListener('orientationchange', _onResize);
 }
 
-// ── Proteção beforeunload ─────────────────────────────────────────
-
 function _bindBeforeUnload() {
-  // Não bloqueia PWA/mobile — só desktop ao recarregar
   window.addEventListener('beforeunload', (e) => {
     const modalAberto = document.getElementById('modalOverlay').classList.contains('aberto');
-    if (modalAberto) {
-      e.preventDefault();
-      e.returnValue = '';
-    }
+    if (modalAberto) { e.preventDefault(); e.returnValue = ''; }
   });
 }
 
@@ -228,12 +289,23 @@ function mostrarDetalheDia(d) {
 // ── Dashboard ─────────────────────────────────────────────────────
 
 function renderizarDashboard() {
-  const { melhorSequencia, diasPerfeitos, horasEstudadas, treinos, mediaGeral } = calcularDashboard();
+  const { melhorSequencia, diasPerfeitos, horasEstudadas, treinos, mediaGeral,
+          minutosDoMes, mediaDiariaMin } = calcularDashboard();
+
   document.getElementById('dash-melhor-seq').textContent     = `${melhorSequencia} dias`;
   document.getElementById('dash-dias-perfeitos').textContent = diasPerfeitos;
   document.getElementById('dash-horas').textContent          = horasEstudadas;
   document.getElementById('dash-treinos').textContent        = treinos;
   document.getElementById('dash-media').textContent          = `${mediaGeral}%`;
+
+  // Bloco mensal de estudo
+  const mesNome = new Date().toLocaleDateString('pt-BR', { month: 'long' });
+  const elMesNome = document.getElementById('dash-estudo-mes-nome');
+  const elTotal   = document.getElementById('dash-estudo-total');
+  const elMedia   = document.getElementById('dash-estudo-media');
+  if (elMesNome) elMesNome.textContent = mesNome.charAt(0).toUpperCase() + mesNome.slice(1);
+  if (elTotal)   elTotal.textContent   = minutosParaTexto(minutosDoMes);
+  if (elMedia)   elMedia.textContent   = minutosParaTexto(mediaDiariaMin);
 }
 
 // ── Aba Hoje ──────────────────────────────────────────────────────
@@ -249,13 +321,11 @@ function _checkboxesTarefas() {
 
 function carregarDiaAtual() {
   const dadosBrutos = lerDados(CHAVE_HOJE);
+  const idsAtuais   = new Set(tarefasAtuais.map(t => t.id));
 
-  // Remove chaves obsoletas (tarefas que não existem mais)
   if (dadosBrutos) {
-    const idsAtuais = new Set(tarefasAtuais.map(t => t.id));
     const dadosLimpos = {};
     idsAtuais.forEach(id => { dadosLimpos[id] = dadosBrutos[id] || false; });
-    // Só resalva se havia chaves a mais
     if (Object.keys(dadosBrutos).length !== Object.keys(dadosLimpos).length) {
       salvarDados(CHAVE_HOJE, dadosLimpos);
     }
@@ -266,7 +336,6 @@ function carregarDiaAtual() {
 }
 
 function salvarDiaAtual() {
-  // Salva apenas as tarefas atuais — remove chaves obsoletas de tarefas deletadas
   const dadosNovos = lerEstadoCheckboxes(_checkboxesTarefas());
   salvarDados(CHAVE_HOJE, dadosNovos);
 }
@@ -292,12 +361,12 @@ function atualizarTela() {
 
 function salvarEdicaoTarefas(novas) {
   salvarTarefas(novas);
-  tarefasAtuais = novas;
+  tarefasTodas  = novas;
+  tarefasAtuais = tarefasParaHoje(tarefasTodas, gruposAtuais);
   renderizarTarefas(tarefasAtuais, onCheckboxChange);
   carregarDiaAtual();
 
-  // Remove chaves obsoletas do dia de hoje (tarefas que foram deletadas)
-  const idsAtuais = new Set(novas.map(t => t.id));
+  const idsAtuais = new Set(tarefasAtuais.map(t => t.id));
   const dadosHoje = lerDados(CHAVE_HOJE) || {};
   const dadosLimpos = {};
   idsAtuais.forEach(id => { dadosLimpos[id] = dadosHoje[id] || false; });
@@ -313,27 +382,222 @@ function contarDiasETreinosCompletos() {
   chavesDeDataValidas().forEach((chave) => {
     const dados = lerDados(chave);
     if (!dados) return;
-    const ent = Object.entries(dados);
-    if (ent.length > 0 && ent.every(([, v]) => v)) dias++;
-    if (ent.some(([id, v]) => v && id.toLowerCase().includes('treino'))) treinos++;
+    const data       = new Date(chave);
+    const tarefasDia = tarefasParaData(data, tarefasTodas, gruposAtuais);
+    const totalDia   = tarefasDia.length;
+    if (totalDia === 0) return;
+    const marcadas = tarefasDia.filter(t => dados[t.id]).length;
+    if (marcadas >= totalDia) dias++;
+    if (tarefasDia.some(t => dados[t.id] && t.id.toLowerCase().includes('treino'))) treinos++;
   });
   return { dias, treinos };
 }
 
+// ── Modal de horas de estudo ──────────────────────────────────────
+
+function abrirModalHorasEstudo(tarefa, checkbox) {
+  // Cria overlay se não existir
+  let overlay = document.getElementById('modalHorasEstudo');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'modalHorasEstudo';
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="modal-box modal-horas-box">
+        <h3 class="modal-horas-titulo">📚 Quanto você estudou?</h3>
+        <div class="modal-horas-opcoes" id="horasOpcoes"></div>
+        <div class="modal-horas-outro" id="horasOutroDiv" style="display:none">
+          <input type="number" id="horasOutroInput" min="5" max="720" step="5"
+                 placeholder="Minutos (ex: 90)" class="modal-input-label">
+        </div>
+        <div class="modal-horas-btns">
+          <button id="btnHorasConfirmar" class="btn-primario">Confirmar</button>
+          <button id="btnHorasCancelar" class="btn-secundario">Cancelar</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+  }
+
+  const opcoes = [
+    { label: '15 min', valor: 15 },
+    { label: '30 min', valor: 30 },
+    { label: '45 min', valor: 45 },
+    { label: '1 hora', valor: 60 },
+    { label: '2 horas', valor: 120 },
+    { label: '3 horas', valor: 180 },
+    { label: 'Outro',   valor: 0 },
+  ];
+
+  const container = document.getElementById('horasOpcoes');
+  container.innerHTML = '';
+  let selecionado = null;
+
+  opcoes.forEach(op => {
+    const btn = document.createElement('button');
+    btn.className = 'horas-opcao';
+    btn.textContent = op.label;
+    btn.addEventListener('click', () => {
+      container.querySelectorAll('.horas-opcao').forEach(b => b.classList.remove('ativa'));
+      btn.classList.add('ativa');
+      selecionado = op.valor;
+      document.getElementById('horasOutroDiv').style.display = op.valor === 0 ? 'block' : 'none';
+    });
+    container.appendChild(btn);
+  });
+
+  document.getElementById('horasOutroDiv').style.display = 'none';
+  document.getElementById('horasOutroInput').value = '';
+  overlay.classList.add('aberto');
+
+  document.getElementById('btnHorasConfirmar').onclick = () => {
+    let minutos = selecionado;
+    if (minutos === 0) {
+      minutos = parseInt(document.getElementById('horasOutroInput').value, 10);
+      if (!minutos || minutos <= 0) {
+        mostrarToast('⚠️ Digite um tempo válido.', '', null, 2500);
+        return;
+      }
+    }
+    if (minutos === null) {
+      mostrarToast('⚠️ Selecione o tempo estudado.', '', null, 2500);
+      return;
+    }
+    // Marca o checkbox e salva
+    checkbox.checked = true;
+    salvarMinutosEstudo(CHAVE_HOJE, minutos);
+    salvarDiaAtual();
+    atualizarTela();
+    overlay.classList.remove('aberto');
+    mostrarToast(`📚 ${minutosParaTexto(minutos)} de estudo registrado!`, '', null, 2500);
+  };
+
+  document.getElementById('btnHorasCancelar').onclick = () => {
+    overlay.classList.remove('aberto');
+  };
+}
+
+// ── Modal de grupos de dias ───────────────────────────────────────
+
+const DIAS_SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+
+function abrirModalGrupos() {
+  let overlay = document.getElementById('modalGrupos');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'modalGrupos';
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="modal-box">
+        <div class="modal-header">
+          <h3>📅 Grupos de dias</h3>
+          <button id="btnFecharGrupos" class="btn-fechar">✕</button>
+        </div>
+        <p class="modal-descricao">Cada grupo define quais tarefas aparecem em determinados dias da semana.</p>
+        <div id="listaGrupos"></div>
+        <button id="btnNovoGrupo" class="btn-secundario" style="width:100%;margin-top:12px">+ Novo grupo</button>
+        <div class="modal-horas-btns" style="margin-top:16px">
+          <button id="btnSalvarGrupos" class="btn-primario">Salvar</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+  }
+
+  overlay.classList.add('aberto');
+  _renderizarListaGrupos();
+
+  document.getElementById('btnFecharGrupos').onclick = () => overlay.classList.remove('aberto');
+  document.getElementById('btnNovoGrupo').onclick = () => {
+    gruposAtuais.push({
+      id: gerarGrupoId(),
+      nome: 'Novo grupo',
+      dias: [],
+      tarefas: tarefasTodas.map(t => t.id),
+    });
+    _renderizarListaGrupos();
+  };
+  document.getElementById('btnSalvarGrupos').onclick = () => {
+    _coletarGruposDoModal();
+    salvarGrupos(gruposAtuais);
+    tarefasAtuais = tarefasParaHoje(tarefasTodas, gruposAtuais);
+    renderizarTarefas(tarefasAtuais, onCheckboxChange);
+    carregarDiaAtual();
+    atualizarTela();
+    overlay.classList.remove('aberto');
+    mostrarToast('✅ Grupos salvos!', '', null, 2500);
+  };
+}
+
+function _renderizarListaGrupos() {
+  const lista = document.getElementById('listaGrupos');
+  lista.innerHTML = '';
+
+  gruposAtuais.forEach((grupo, idx) => {
+    const div = document.createElement('div');
+    div.className = 'grupo-item';
+    div.dataset.idx = idx;
+
+    // Dias checkboxes
+    const diasHTML = DIAS_SEMANA.map((nome, d) => `
+      <label class="grupo-dia-label">
+        <input type="checkbox" class="grupo-dia-cb" data-dia="${d}" ${grupo.dias.includes(d) ? 'checked' : ''}>
+        ${nome}
+      </label>`).join('');
+
+    // Tarefas checkboxes
+    const tarefasHTML = tarefasTodas.map(t => `
+      <label class="grupo-tarefa-label">
+        <input type="checkbox" class="grupo-tarefa-cb" data-tid="${t.id}" ${grupo.tarefas.includes(t.id) ? 'checked' : ''}>
+        ${t.icone || ''} ${t.label}
+      </label>`).join('');
+
+    div.innerHTML = `
+      <div class="grupo-header">
+        <input class="grupo-nome-input modal-input-label" value="${grupo.nome}" placeholder="Nome do grupo">
+        <button class="btn-excluir-grupo" data-idx="${idx}" title="Excluir grupo">🗑</button>
+      </div>
+      <div class="grupo-section-label">Dias da semana:</div>
+      <div class="grupo-dias">${diasHTML}</div>
+      <div class="grupo-section-label" style="margin-top:10px">Tarefas:</div>
+      <div class="grupo-tarefas">${tarefasHTML}</div>
+    `;
+
+    div.querySelector('.btn-excluir-grupo').addEventListener('click', (e) => {
+      const i = parseInt(e.currentTarget.dataset.idx);
+      if (gruposAtuais.length <= 1) {
+        mostrarToast('⚠️ Mantenha ao menos 1 grupo.', '', null, 2500);
+        return;
+      }
+      gruposAtuais.splice(i, 1);
+      _renderizarListaGrupos();
+    });
+
+    lista.appendChild(div);
+  });
+}
+
+function _coletarGruposDoModal() {
+  const itens = document.querySelectorAll('#listaGrupos .grupo-item');
+  itens.forEach((div, idx) => {
+    const nome = div.querySelector('.grupo-nome-input').value.trim() || `Grupo ${idx + 1}`;
+    const dias = [...div.querySelectorAll('.grupo-dia-cb:checked')].map(cb => parseInt(cb.dataset.dia));
+    const tarefas = [...div.querySelectorAll('.grupo-tarefa-cb:checked')].map(cb => cb.dataset.tid);
+    gruposAtuais[idx] = { ...gruposAtuais[idx], nome, dias, tarefas };
+  });
+}
 
 // ── Retrospectiva ─────────────────────────────────────────────────
 
 function _renderizarRetroLista(dataISO) {
   const lista = document.getElementById('retroLista');
   lista.innerHTML = '';
-
   if (!dataISO) return;
 
-  // Carrega dados já existentes para aquela data (se houver)
   const dadosExistentes = lerDados(dataISO) || {};
+  const data            = new Date(dataISO);
+  const tarefasDia      = tarefasParaData(data, tarefasTodas, gruposAtuais);
 
-  tarefasAtuais.forEach(t => {
-    const li  = document.createElement('li');
+  tarefasDia.forEach(t => {
+    const li = document.createElement('li');
     const jaMarcada = dadosExistentes[t.id] === true;
     li.innerHTML = `
       <label style="display:flex;align-items:center;gap:10px;padding:8px 0;cursor:pointer;font-size:15px">
@@ -346,23 +610,13 @@ function _renderizarRetroLista(dataISO) {
 
 function salvarRetrospectiva() {
   const inputData = document.getElementById('inputDataRetro').value;
-  if (!inputData) {
-    mostrarToast('⚠️ Selecione uma data.', '', null, 2500);
-    return;
-  }
+  if (!inputData) { mostrarToast('⚠️ Selecione uma data.', '', null, 2500); return; }
 
-  // Validar: não permite data de hoje ou futura (comparação em string ISO é segura)
   const hojeISO = new Date().toISOString().split('T')[0];
-  if (inputData >= hojeISO) {
-    mostrarToast('⚠️ Selecione uma data anterior a hoje.', '', null, 2500);
-    return;
-  }
+  if (inputData >= hojeISO) { mostrarToast('⚠️ Selecione uma data anterior a hoje.', '', null, 2500); return; }
 
   const checkboxes = document.querySelectorAll('.retro-check');
-  if (checkboxes.length === 0) {
-    mostrarToast('⚠️ Nenhuma tarefa disponível.', '', null, 2500);
-    return;
-  }
+  if (checkboxes.length === 0) { mostrarToast('⚠️ Nenhuma tarefa disponível.', '', null, 2500); return; }
 
   const dados = {};
   checkboxes.forEach(cb => { dados[cb.dataset.id] = cb.checked; });
@@ -370,7 +624,6 @@ function salvarRetrospectiva() {
   const ok = salvarDados(inputData, dados);
   if (ok) {
     mostrarToast('✅ Dia registrado com sucesso!', '', null, 3000);
-    // Atualiza tela principal se necessário
     atualizarTela();
   } else {
     mostrarToast('❌ Erro ao salvar. Tente novamente.', '', null, 3000);
@@ -378,30 +631,22 @@ function salvarRetrospectiva() {
 }
 
 function carregarPainelConfig() {
-  // Tema
   const prefs = lerPrefs();
   const toggleTema = document.getElementById('toggleTema');
   if (toggleTema) toggleTema.checked = !!prefs.temaClaro;
 
-  // Notificações
   const cfg = lerConfigNotif();
   document.getElementById('toggleNotif').checked = cfg.ativa;
   document.getElementById('inputHoraNotif').value = cfg.hora;
 
-  // Retrospectiva: configura data máxima (ontem) e mínima (há 365 dias)
   const inputData = document.getElementById('inputDataRetro');
   const ontem = new Date();
   ontem.setDate(ontem.getDate() - 1);
   const minDate = new Date();
   minDate.setFullYear(minDate.getFullYear() - 1);
-
   inputData.max = ontem.toISOString().split('T')[0];
   inputData.min = minDate.toISOString().split('T')[0];
-
-  // Sempre define para ontem ao abrir (para garantir estado limpo)
   inputData.value = inputData.max;
-
-  // Renderiza lista de tarefas para ontem
   _renderizarRetroLista(inputData.value);
 }
 

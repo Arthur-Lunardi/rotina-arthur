@@ -30,9 +30,16 @@ export function renderizarTarefas(tarefas, onchange) {
     const cb    = document.createElement('input');
     cb.type = 'checkbox';
     cb.id   = tarefa.id;
+    // 'change' funciona em desktop e mobile; touch-action é tratado via CSS
     cb.addEventListener('change', onchange);
     label.appendChild(cb);
     label.appendChild(document.createTextNode(` ${tarefa.icone || ''} ${tarefa.label}`));
+    if (tarefa.horario) {
+      const hora = document.createElement('span');
+      hora.className = 'tarefa-horario';
+      hora.textContent = tarefa.horario;
+      label.appendChild(hora);
+    }
     frag.appendChild(label);
   });
 
@@ -190,8 +197,9 @@ function adicionarLinhaNoModal(tarefa = null) {
   linha.dataset.id = id;
   linha.draggable  = true;
 
-  const iconeVal = tarefa ? (tarefa.icone || '') : '';
-  const labelVal = tarefa ? _escaparHTML(tarefa.label) : '';
+  const iconeVal  = tarefa ? (tarefa.icone   || '') : '';
+  const labelVal  = tarefa ? _escaparHTML(tarefa.label) : '';
+  const horarioVal = tarefa ? (tarefa.horario || '') : '';
 
   linha.innerHTML = `
     <span class="drag-handle" title="Arraste para reordenar" aria-hidden="true">⠿</span>
@@ -199,6 +207,8 @@ function adicionarLinhaNoModal(tarefa = null) {
       value="${iconeVal}" aria-label="Ícone da tarefa">
     <input class="modal-input-label" type="text" maxlength="60" placeholder="Nome da tarefa"
       value="${labelVal}" aria-label="Nome da tarefa">
+    <input class="modal-input-horario" type="time"
+      value="${horarioVal}" aria-label="Horário da tarefa" title="Horário (opcional)">
     <button class="btn-remover-tarefa" aria-label="Remover tarefa">🗑️</button>
   `;
 
@@ -210,8 +220,9 @@ function adicionarLinhaNoModal(tarefa = null) {
   linha.querySelector('.btn-remover-tarefa').addEventListener('click', () => {
     const snapshot = {
       id,
-      icone: linha.querySelector('.modal-input-icone').value,
-      label: linha.querySelector('.modal-input-label').value,
+      icone:   linha.querySelector('.modal-input-icone').value,
+      label:   linha.querySelector('.modal-input-label').value,
+      horario: linha.querySelector('.modal-input-horario').value,
       posicao: Array.from(lista.children).indexOf(linha),
     };
     _lixeira.push(snapshot);
@@ -252,6 +263,7 @@ function _criarLinhaSnapshot(snap) {
     <span class="drag-handle" aria-hidden="true">⠿</span>
     <input class="modal-input-icone" type="text" maxlength="2" placeholder="🔔" value="${_escaparHTML(snap.icone)}">
     <input class="modal-input-label" type="text" maxlength="60" placeholder="Nome da tarefa" value="${_escaparHTML(snap.label)}">
+    <input class="modal-input-horario" type="time" value="${_escaparHTML(snap.horario || '')}" aria-label="Horário da tarefa" title="Horário (opcional)">
     <button class="btn-remover-tarefa" aria-label="Remover tarefa">🗑️</button>
   `;
 
@@ -321,6 +333,10 @@ function _inicializarDragDrop() {
   });
 
   // ─── Touch drag ────────────────────────────────────────────────
+  // Estratégia: esconde o elemento arrastado temporariamente antes de
+  // chamar elementFromPoint — resolve o bug onde o próprio elemento
+  // bloqueava a detecção do alvo por baixo dele.
+
   lista.addEventListener('touchstart', (e) => {
     const handle = e.target.closest('.drag-handle');
     if (!handle) return;
@@ -333,8 +349,15 @@ function _inicializarDragDrop() {
   lista.addEventListener('touchmove', (e) => {
     if (!_arrastando) return;
     e.preventDefault();
+
     const touch = e.touches[0];
-    const alvo = document.elementFromPoint(touch.clientX, touch.clientY)?.closest('.modal-linha');
+
+    // Esconde temporariamente para que elementFromPoint detecte o elemento abaixo
+    _arrastando.style.visibility = 'hidden';
+    const elementoAbaixo = document.elementFromPoint(touch.clientX, touch.clientY);
+    _arrastando.style.visibility = '';
+
+    const alvo = elementoAbaixo?.closest('.modal-linha');
     if (!alvo || alvo === _arrastando) return;
 
     lista.querySelectorAll('.modal-linha').forEach(l => l.classList.remove('drag-over'));
@@ -352,9 +375,19 @@ function _inicializarDragDrop() {
   lista.addEventListener('touchend', () => {
     if (!_arrastando) return;
     _arrastando.classList.remove('arrastando');
+    _arrastando.style.visibility = '';
     lista.querySelectorAll('.modal-linha').forEach(l => l.classList.remove('drag-over'));
     _arrastando = null;
     _alterado   = true;
+  });
+
+  // touchcancel: dedo saiu da tela inesperadamente (ex: ligação recebida)
+  lista.addEventListener('touchcancel', () => {
+    if (!_arrastando) return;
+    _arrastando.classList.remove('arrastando');
+    _arrastando.style.visibility = '';
+    lista.querySelectorAll('.modal-linha').forEach(l => l.classList.remove('drag-over'));
+    _arrastando = null;
   });
 }
 
@@ -370,7 +403,8 @@ function coletarESalvar() {
 
     if (!label) return; // ignora linhas completamente vazias
 
-    const errosLinha = validarTarefa(label, icone);
+    const horario = linha.querySelector('.modal-input-horario').value.trim();
+    const errosLinha = validarTarefa(label, icone, horario);
     if (errosLinha.length > 0) {
       erros.push(`Tarefa ${idx + 1}: ${errosLinha.join(' ')}`);
       // Destaca o campo com erro
@@ -379,7 +413,7 @@ function coletarESalvar() {
     }
 
     linha.querySelector('.modal-input-label').style.borderColor = '';
-    novasTarefas.push({ id, label, icone });
+    novasTarefas.push({ id, label, icone, horario });
   });
 
   if (erros.length > 0) {

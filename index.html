@@ -41,7 +41,10 @@
     <div class="desktop-grid">
       <div class="col-esquerda">
         <div class="card" id="cardTarefas"></div>
-        <button id="btnEditarTarefas" class="btn-editar">✏️ Editar tarefas</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button id="btnEditarTarefas" class="btn-editar">✏️ Editar tarefas</button>
+          <button id="btnGerenciarGrupos" class="btn-editar" style="background:var(--cor-secundaria,#6366f1)">📅 Grupos de dias</button>
+        </div>
       </div>
       <div class="col-direita">
         <div class="progresso">
@@ -113,7 +116,7 @@
       </div>
       <div class="dash-item">
         <span class="dash-icone">📚</span>
-        <div><div class="dash-label">Dias estudados</div><div class="dash-valor" id="dash-horas">0</div></div>
+        <div><div class="dash-label">Horas estudadas</div><div class="dash-valor" id="dash-horas">0</div></div>
       </div>
       <div class="dash-item">
         <span class="dash-icone">💪</span>
@@ -125,6 +128,26 @@
       </div>
     </div>
     <button id="btnExportarCSV" class="btn-exportar">⬇️ Exportar histórico CSV</button>
+
+    <!-- Card mensal de estudo -->
+    <div class="dash-estudo-card">
+      <div class="dash-estudo-mes">📚 <span id="dash-estudo-mes-nome">Junho</span></div>
+      <div class="dash-estudo-linha">
+        <span>Total</span>
+        <strong id="dash-estudo-total">0h</strong>
+      </div>
+      <div class="dash-estudo-linha">
+        <span>Média diária</span>
+        <strong id="dash-estudo-media">0 min</strong>
+      </div>
+    </div>
+
+    <!-- Backup -->
+    <div class="backup-btns">
+      <button id="btnExportarBackup" class="btn-backup">📤 Exportar Backup</button>
+      <button id="btnImportarBackup" class="btn-backup">📥 Importar Backup</button>
+      <input type="file" id="inputImportarBackup" accept=".json" style="display:none">
+    </div>
   </div>
 
 </div><!-- /container -->
