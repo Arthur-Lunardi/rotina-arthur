@@ -360,7 +360,29 @@ function atualizarTela() {
 }
 
 function salvarEdicaoTarefas(novas) {
+  // Detecta IDs que existiam antes e os que são novos
+  const idsAntigos = new Set(tarefasTodas.map(t => t.id));
+  const idsNovos   = novas.filter(t => !idsAntigos.has(t.id)).map(t => t.id);
+  const idsRemovidos = new Set([...idsAntigos].filter(id => !novas.some(t => t.id === id)));
+
+  // Adiciona tarefas novas a todos os grupos existentes
+  if (idsNovos.length > 0) {
+    gruposAtuais = gruposAtuais.map(g => ({
+      ...g,
+      tarefas: [...g.tarefas, ...idsNovos],
+    }));
+  }
+
+  // Remove tarefas deletadas de todos os grupos
+  if (idsRemovidos.size > 0) {
+    gruposAtuais = gruposAtuais.map(g => ({
+      ...g,
+      tarefas: g.tarefas.filter(id => !idsRemovidos.has(id)),
+    }));
+  }
+
   salvarTarefas(novas);
+  salvarGrupos(gruposAtuais);
   tarefasTodas  = novas;
   tarefasAtuais = tarefasParaHoje(tarefasTodas, gruposAtuais);
   renderizarTarefas(tarefasAtuais, onCheckboxChange);
@@ -507,6 +529,7 @@ function abrirModalGrupos() {
 
   document.getElementById('btnFecharGrupos').onclick = () => overlay.classList.remove('aberto');
   document.getElementById('btnNovoGrupo').onclick = () => {
+    _coletarGruposDoModal(); // preserva edições já feitas antes de adicionar
     gruposAtuais.push({
       id: gerarGrupoId(),
       nome: 'Novo grupo',
@@ -562,6 +585,7 @@ function _renderizarListaGrupos() {
     `;
 
     div.querySelector('.btn-excluir-grupo').addEventListener('click', (e) => {
+      _coletarGruposDoModal(); // sincroniza estado atual antes de deletar
       const i = parseInt(e.currentTarget.dataset.idx);
       if (gruposAtuais.length <= 1) {
         mostrarToast('⚠️ Mantenha ao menos 1 grupo.', '', null, 2500);
